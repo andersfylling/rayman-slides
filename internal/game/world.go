@@ -16,12 +16,14 @@ type World struct {
 	// Mappers for entity creation
 	playerMapper *ecs.Map9[Position, Velocity, Collider, Sprite, Player, Health, Gravity, Grounded, Controller]
 	enemyMapper  *ecs.Map7[Position, Velocity, Collider, Sprite, Health, Gravity, Grounded]
+	attackMapper *ecs.Map1[AttackState] // Separate mapper for attack state
 
 	// Filters for queries
 	playerFilter  *ecs.Filter2[Position, Player]
 	physicsFilter *ecs.Filter4[Position, Velocity, Gravity, Grounded]
 	renderFilter  *ecs.Filter2[Position, Sprite]
 	controlFilter *ecs.Filter3[Velocity, Grounded, Controller]
+	attackFilter  *ecs.Filter4[Sprite, Controller, AttackState, Velocity]
 }
 
 // Controller tracks which intents are active for an entity
@@ -39,12 +41,14 @@ func NewWorld() *World {
 	// Initialize mappers
 	w.playerMapper = ecs.NewMap9[Position, Velocity, Collider, Sprite, Player, Health, Gravity, Grounded, Controller](w.ECS)
 	w.enemyMapper = ecs.NewMap7[Position, Velocity, Collider, Sprite, Health, Gravity, Grounded](w.ECS)
+	w.attackMapper = ecs.NewMap1[AttackState](w.ECS)
 
 	// Initialize filters
 	w.playerFilter = ecs.NewFilter2[Position, Player](w.ECS)
 	w.physicsFilter = ecs.NewFilter4[Position, Velocity, Gravity, Grounded](w.ECS)
 	w.renderFilter = ecs.NewFilter2[Position, Sprite](w.ECS)
 	w.controlFilter = ecs.NewFilter3[Velocity, Grounded, Controller](w.ECS)
+	w.attackFilter = ecs.NewFilter4[Sprite, Controller, AttackState, Velocity](w.ECS)
 
 	return w
 }
@@ -58,6 +62,7 @@ func (w *World) SetTileMap(tm *collision.TileMap) {
 func (w *World) Update() {
 	w.Tick++
 	w.runInputSystem()
+	w.runAttackSystem()
 	w.runPhysicsSystem()
 	w.runCollisionSystem()
 }
@@ -85,6 +90,46 @@ func (w *World) runInputSystem() {
 		if ctrl.Intents&protocol.IntentJump != 0 && grounded.OnGround {
 			vel.Y = -jumpSpeed
 			grounded.OnGround = false
+		}
+	}
+}
+
+// runAttackSystem handles attack animations and sprite changes
+func (w *World) runAttackSystem() {
+	query := w.attackFilter.Query()
+	for query.Next() {
+		sprite, ctrl, attack, vel := query.Get()
+
+		// Check for attack input
+		if ctrl.Intents&protocol.IntentAttack != 0 && !attack.Attacking {
+			attack.Attacking = true
+			attack.TicksLeft = AttackDuration
+			// Determine facing direction from velocity or keep previous
+			if vel.X > 0 {
+				attack.FacingRight = true
+			} else if vel.X < 0 {
+				attack.FacingRight = false
+			}
+		}
+
+		// Update attack animation
+		if attack.Attacking {
+			if attack.TicksLeft > 0 {
+				attack.TicksLeft--
+				// Set punch sprite based on direction
+				if attack.FacingRight {
+					sprite.ID = "player_punch_right"
+				} else {
+					sprite.ID = "player_punch_left"
+				}
+			} else {
+				// Attack finished
+				attack.Attacking = false
+				sprite.ID = "player"
+			}
+		} else {
+			// Not attacking - use normal sprite
+			sprite.ID = "player"
 		}
 	}
 }
@@ -184,7 +229,7 @@ func (w *World) runCollisionSystem() {
 
 // SpawnPlayer creates a player entity
 func (w *World) SpawnPlayer(id int, name string, x, y float64) ecs.Entity {
-	return w.playerMapper.NewEntity(
+	entity := w.playerMapper.NewEntity(
 		&Position{X: x, Y: y},
 		&Velocity{X: 0, Y: 0},
 		&Collider{Width: 0.8, Height: 0.9},
@@ -195,6 +240,9 @@ func (w *World) SpawnPlayer(id int, name string, x, y float64) ecs.Entity {
 		&Grounded{OnGround: false},
 		&Controller{Intents: protocol.IntentNone},
 	)
+	// Add attack state component
+	w.attackMapper.Add(entity, &AttackState{FacingRight: true})
+	return entity
 }
 
 // SpawnEnemy creates an enemy entity

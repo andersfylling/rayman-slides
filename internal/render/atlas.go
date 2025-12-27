@@ -2,9 +2,35 @@ package render
 
 // SpriteData holds renderer-specific sprite information
 type SpriteData struct {
-	Char  rune  // ASCII/Unicode character
-	FG    Color // Foreground color
-	BG    Color // Background color (usually transparent/black)
+	Char   rune     // ASCII/Unicode character (used if Lines is empty)
+	Lines  []string // Multi-line ASCII art (takes priority over Char)
+	Anchor struct { // Position within sprite that maps to entity position
+		X, Y int
+	}
+	FG Color // Foreground color
+	BG Color // Background color (usually transparent/black)
+}
+
+// Width returns the width of the sprite in cells
+func (s SpriteData) Width() int {
+	if len(s.Lines) == 0 {
+		return 1
+	}
+	maxW := 0
+	for _, line := range s.Lines {
+		if len(line) > maxW {
+			maxW = len(line)
+		}
+	}
+	return maxW
+}
+
+// Height returns the height of the sprite in cells
+func (s SpriteData) Height() int {
+	if len(s.Lines) == 0 {
+		return 1
+	}
+	return len(s.Lines)
 }
 
 // SpriteAtlas maps sprite IDs to renderer-specific representations
@@ -48,11 +74,64 @@ func (a *SpriteAtlas) Has(id string) bool {
 func DefaultASCIIAtlas() *SpriteAtlas {
 	atlas := NewSpriteAtlas()
 
-	// Player sprites
-	atlas.Set("player", SpriteData{Char: '@', FG: ColorGreen, BG: ColorBlack})
-	atlas.Set("player_idle", SpriteData{Char: '@', FG: ColorGreen, BG: ColorBlack})
-	atlas.Set("player_walk", SpriteData{Char: '@', FG: ColorGreen, BG: ColorBlack})
-	atlas.Set("player_jump", SpriteData{Char: '^', FG: ColorGreen, BG: ColorBlack})
+	// Player sprites - multi-line ASCII art
+	// Anchor at feet position (center-bottom) for physics alignment
+	playerSprite := SpriteData{
+		Lines: []string{
+			" O ",
+			"/|\\",
+			"/ \\",
+		},
+		FG: ColorGreen,
+		BG: ColorBlack,
+	}
+	playerSprite.Anchor.X = 1 // Center horizontally
+	playerSprite.Anchor.Y = 2 // Bottom row is the feet
+	atlas.Set("player", playerSprite)
+	atlas.Set("player_idle", playerSprite)
+	atlas.Set("player_walk", playerSprite)
+
+	// Player jumping sprite
+	playerJumpSprite := SpriteData{
+		Lines: []string{
+			"\\O/",
+			" | ",
+			"/ \\",
+		},
+		FG: ColorGreen,
+		BG: ColorBlack,
+	}
+	playerJumpSprite.Anchor.X = 1
+	playerJumpSprite.Anchor.Y = 2
+	atlas.Set("player_jump", playerJumpSprite)
+
+	// Player punching right
+	playerPunchRight := SpriteData{
+		Lines: []string{
+			" O ",
+			"/|--*",
+			"/ \\",
+		},
+		FG: ColorGreen,
+		BG: ColorBlack,
+	}
+	playerPunchRight.Anchor.X = 1
+	playerPunchRight.Anchor.Y = 2
+	atlas.Set("player_punch_right", playerPunchRight)
+
+	// Player punching left
+	playerPunchLeft := SpriteData{
+		Lines: []string{
+			" O ",
+			"*--|\\",
+			"   / \\",
+		},
+		FG: ColorGreen,
+		BG: ColorBlack,
+	}
+	playerPunchLeft.Anchor.X = 4 // Fist is at left, body center at 4
+	playerPunchLeft.Anchor.Y = 2
+	atlas.Set("player_punch_left", playerPunchLeft)
 
 	// Enemy sprites
 	atlas.Set("slime", SpriteData{Char: 's', FG: ColorGreen, BG: ColorBlack})

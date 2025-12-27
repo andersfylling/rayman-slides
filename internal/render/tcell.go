@@ -145,12 +145,38 @@ func (r *TcellRenderer) RenderWorld(world *game.World, camera Camera) {
 
 	// Render entities using sprite atlas
 	for _, e := range world.GetRenderables() {
-		screenX := int(e.X) - cameraX
-		screenY := int(e.Y) - cameraY
+		sprite := r.atlas.Get(e.SpriteID)
+		r.renderSprite(int(e.X)-cameraX, int(e.Y)-cameraY, sprite, screenW, screenH)
+	}
+}
 
+// renderSprite draws a sprite at the given screen position
+func (r *TcellRenderer) renderSprite(screenX, screenY int, sprite SpriteData, screenW, screenH int) {
+	if len(sprite.Lines) == 0 {
+		// Single-character sprite
 		if screenX >= 0 && screenX < screenW && screenY >= 0 && screenY < screenH {
-			sprite := r.atlas.Get(e.SpriteID)
 			r.setCell(screenX, screenY, sprite.Char, sprite.FG, sprite.BG)
+		}
+		return
+	}
+
+	// Multi-line sprite - adjust position by anchor
+	startX := screenX - sprite.Anchor.X
+	startY := screenY - sprite.Anchor.Y
+
+	for dy, line := range sprite.Lines {
+		y := startY + dy
+		if y < 0 || y >= screenH {
+			continue
+		}
+		for dx, ch := range line {
+			x := startX + dx
+			if x < 0 || x >= screenW {
+				continue
+			}
+			if ch != ' ' { // Skip spaces (transparent)
+				r.setCell(x, y, ch, sprite.FG, sprite.BG)
+			}
 		}
 	}
 }

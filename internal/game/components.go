@@ -50,3 +50,13 @@ type Gravity struct {
 type Grounded struct {
 	OnGround bool
 }
+
+// AttackState tracks attack animation state
+type AttackState struct {
+	Attacking     bool   // Currently attacking
+	TicksLeft     int    // Animation ticks remaining
+	FacingRight   bool   // Direction of attack
+}
+
+// AttackDuration is how many ticks the punch animation lasts
+const AttackDuration = 8
