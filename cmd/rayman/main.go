@@ -59,7 +59,7 @@ func run() error {
 	// Track when each intent was last pressed (for simulating held keys)
 	// Terminals don't send "key held" events, only "key pressed" with repeat
 	intentLastPressed := make(map[protocol.Intent]time.Time)
-	const intentHoldDuration = 300 * time.Millisecond // How long to keep intent active after last press (must exceed terminal key repeat interval)
+	const intentHoldDuration = 600 * time.Millisecond // How long to keep intent active after last press (must exceed terminal initial key repeat delay ~500ms)
 
 	for running {
 		// Process all pending input events
