@@ -202,6 +202,71 @@ tools/
     braille.go
 ```
 
+## Integration with Game Logic
+
+**Critical: Game logic is decoupled from sprite visuals.**
+
+The game world uses abstract sprite IDs, not visual data:
+
+```go
+// Game component - knows nothing about how sprites look
+type Sprite struct {
+    ID    string  // "player", "slime", "platform"
+    Color uint32  // Color hint (optional)
+}
+
+// Spawning an entity
+world.SpawnEnemy("slime", x, y)  // Uses sprite ID "slime"
+```
+
+### Sprite Atlases
+
+Each renderer maintains a `SpriteAtlas` that maps IDs to its native format:
+
+```go
+// ASCII atlas
+atlas.Set("player", SpriteData{Char: '@', FG: ColorGreen})
+atlas.Set("slime",  SpriteData{Char: 's', FG: ColorGreen})
+
+// Half-block atlas (different representation, same IDs)
+atlas.Set("player", SpriteData{Char: '█', FG: ColorGreen})
+atlas.Set("slime",  SpriteData{Char: '▄', FG: ColorGreen})
+```
+
+### Converter Output
+
+The sprite converter produces atlas entries, not raw images:
+
+```bash
+# Convert PNGs to Go atlas code
+./tools/sprite-convert assets/sprites/ --output internal/render/sprites_gen.go
+```
+
+Output:
+```go
+func GeneratedASCIIAtlas() *SpriteAtlas {
+    atlas := NewSpriteAtlas()
+    atlas.Set("player_idle", SpriteData{Char: '@', FG: Color{0, 255, 0}})
+    atlas.Set("player_walk", SpriteData{Char: '@', FG: Color{0, 255, 0}})
+    atlas.Set("slime", SpriteData{Char: 's', FG: Color{0, 200, 0}})
+    // ...
+    return atlas
+}
+```
+
+### Flow
+
+```
+PNG Source → Converter → Sprite Atlas (per renderer)
+                              ↓
+Game World (sprite IDs) → Renderer (looks up atlas) → Screen
+```
+
+This allows:
+- Multiple renderers showing the same game state
+- Easy theming (swap atlas, keep game logic)
+- Future graphical renderers without changing game code
+
 ## Consequences
 
 - **Standard tooling** - Any image editor or AI tool works
@@ -211,3 +276,4 @@ tools/
 - **Build step** - Need to run converter (can automate in Makefile)
 - **Conversion quality** - Results depend on algorithm tuning
 - **Larger assets** - PNGs bigger than text, but still tiny for pixel art
+- **Decoupled rendering** - Game logic uses IDs, renderers handle visuals

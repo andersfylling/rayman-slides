@@ -188,7 +188,7 @@ func (w *World) SpawnPlayer(id int, name string, x, y float64) ecs.Entity {
 		&Position{X: x, Y: y},
 		&Velocity{X: 0, Y: 0},
 		&Collider{Width: 0.8, Height: 0.9},
-		&Sprite{Char: '@', Color: 0x00FF00},
+		&Sprite{ID: "player", Color: 0x00FF00},
 		&Player{ID: id, Name: name},
 		&Health{Current: 3, Max: 3},
 		&Gravity{Scale: 1.0},
@@ -199,23 +199,23 @@ func (w *World) SpawnPlayer(id int, name string, x, y float64) ecs.Entity {
 
 // SpawnEnemy creates an enemy entity
 func (w *World) SpawnEnemy(enemyType string, x, y float64) ecs.Entity {
-	ch := 'E'
+	spriteID := enemyType // Use enemy type as sprite ID
 	color := uint32(0xFF0000)
 
 	switch enemyType {
 	case "slime":
-		ch = 's'
 		color = 0x00FF00
 	case "bat":
-		ch = 'b'
 		color = 0x800080
+	default:
+		spriteID = "enemy"
 	}
 
 	return w.enemyMapper.NewEntity(
 		&Position{X: x, Y: y},
 		&Velocity{X: 0, Y: 0},
 		&Collider{Width: 0.8, Height: 0.8},
-		&Sprite{Char: ch, Color: color},
+		&Sprite{ID: spriteID, Color: color},
 		&Health{Current: 1, Max: 1},
 		&Gravity{Scale: 1.0},
 		&Grounded{OnGround: false},
@@ -231,30 +231,25 @@ func (w *World) SetPlayerIntent(playerID int, intents protocol.Intent) {
 	}
 }
 
+// Renderable represents an entity that can be drawn
+type Renderable struct {
+	X, Y     float64
+	SpriteID string
+	Color    uint32 // Color hint (renderers may use their atlas colors instead)
+}
+
 // GetRenderables returns all entities with position and sprite for rendering
-func (w *World) GetRenderables() []struct {
-	X, Y  float64
-	Char  rune
-	Color uint32
-} {
-	var result []struct {
-		X, Y  float64
-		Char  rune
-		Color uint32
-	}
+func (w *World) GetRenderables() []Renderable {
+	var result []Renderable
 
 	query := w.renderFilter.Query()
 	for query.Next() {
 		pos, sprite := query.Get()
-		result = append(result, struct {
-			X, Y  float64
-			Char  rune
-			Color uint32
-		}{
-			X:     pos.X,
-			Y:     pos.Y,
-			Char:  sprite.Char,
-			Color: sprite.Color,
+		result = append(result, Renderable{
+			X:        pos.X,
+			Y:        pos.Y,
+			SpriteID: sprite.ID,
+			Color:    sprite.Color,
 		})
 	}
 

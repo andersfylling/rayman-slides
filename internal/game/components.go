@@ -18,9 +18,10 @@ type Collider struct {
 }
 
 // Sprite component (for rendering)
+// Uses abstract sprite IDs - renderers map these to their native format
 type Sprite struct {
-	Char  rune   // ASCII representation
-	Color uint32 // RGB color
+	ID    string // Sprite identifier (e.g., "player", "slime", "platform")
+	Color uint32 // RGB color hint (renderers may use or ignore)
 }
 
 // Player component (marks player-controlled entities)

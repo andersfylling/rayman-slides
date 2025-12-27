@@ -30,6 +30,9 @@ func run() error {
 	}
 	defer renderer.Close()
 
+	// Initialize sprite atlas for this renderer
+	atlas := render.DefaultASCIIAtlas()
+
 	// Create game world
 	world := game.NewWorld()
 
@@ -109,14 +112,14 @@ func run() error {
 			currentIntents = protocol.IntentNone
 
 			// Render
-			renderGame(renderer, world, tiles)
+			renderGame(renderer, atlas, world, tiles)
 		}
 	}
 
 	return nil
 }
 
-func renderGame(r *render.TcellRenderer, world *game.World, tiles [][]rune) {
+func renderGame(r *render.TcellRenderer, atlas *render.SpriteAtlas, world *game.World, tiles [][]rune) {
 	r.Clear()
 
 	screenW, screenH := r.Size()
@@ -163,18 +166,15 @@ func renderGame(r *render.TcellRenderer, world *game.World, tiles [][]rune) {
 		}
 	}
 
-	// Render entities
+	// Render entities using sprite atlas
 	for _, e := range world.GetRenderables() {
 		screenX := int(e.X) - cameraX
 		screenY := int(e.Y) - cameraY
 
 		if screenX >= 0 && screenX < screenW && screenY >= 0 && screenY < screenH {
-			fg := render.Color{
-				R: uint8((e.Color >> 16) & 0xFF),
-				G: uint8((e.Color >> 8) & 0xFF),
-				B: uint8(e.Color & 0xFF),
-			}
-			r.SetCell(screenX, screenY, e.Char, fg, render.ColorBlack)
+			// Look up sprite in atlas
+			sprite := atlas.Get(e.SpriteID)
+			r.SetCell(screenX, screenY, sprite.Char, sprite.FG, sprite.BG)
 		}
 	}
 

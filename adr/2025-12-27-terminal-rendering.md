@@ -152,11 +152,77 @@ render/
   color.go      # Color palette management
 ```
 
+## Rendering Architecture
+
+**Critical principle: Game logic is decoupled from rendering.**
+
+The game world uses abstract sprite IDs, not visual representations:
+
+```
+Game World (abstract)              Renderers (concrete)
+┌─────────────────────┐           ┌──────────────────┐
+│ Position{X, Y}      │           │ ASCII Renderer   │
+│ Sprite{ID: "player"}│──────────►│ atlas["player"]  │
+│ Collider{W, H}      │           │   → '@' green    │
+└─────────────────────┘           └──────────────────┘
+                                  ┌──────────────────┐
+                      ───────────►│ Half-block       │
+                                  │ atlas["player"]  │
+                                  │   → '█' green    │
+                                  └──────────────────┘
+                                  ┌──────────────────┐
+                      ───────────►│ SDL/Vulkan       │
+                                  │ atlas["player"]  │
+                                  │   → player.png   │
+                                  └──────────────────┘
+```
+
+### Sprite Atlas
+
+Each renderer maintains a `SpriteAtlas` that maps sprite IDs to its native format:
+
+```go
+// Game component - abstract
+type Sprite struct {
+    ID    string  // "player", "slime", "platform"
+    Color uint32  // Color hint (renderer may ignore)
+}
+
+// Renderer-specific lookup
+type SpriteAtlas struct {
+    sprites map[string]SpriteData
+}
+
+atlas := render.DefaultASCIIAtlas()
+sprite := atlas.Get("player")  // → {Char: '@', FG: green}
+```
+
+### Benefits
+
+- **Same game state, multiple views** - Run ASCII and graphical renderers simultaneously
+- **Easy theming** - Swap atlas without touching game logic
+- **Testable** - Game logic doesn't depend on rendering
+- **Future-proof** - Add new renderers (Vulkan, SDL) without changing game code
+
+### File Structure
+
+```
+render/
+  atlas.go       # SpriteAtlas type, default atlases
+  detect.go      # Terminal capability detection
+  renderer.go    # Renderer interface
+  tcell.go       # tcell-based terminal renderer
+  ascii.go       # Plain ASCII renderer
+  halfblock.go   # Half-block renderer
+  braille.go     # Braille renderer
+```
+
 ## Consequences
 
 - **Multiple renderers** - More code, but graceful degradation
 - **Runtime detection** - Must query terminal capabilities at startup
-- **Asset pipeline** - Sprites need multiple representations or runtime conversion
+- **Sprite atlases** - Each renderer maintains its own sprite mappings
+- **Decoupled architecture** - Game logic never knows how it's being rendered
 - **Testing complexity** - Need to test each render mode
 - **User override** - Flags allow forcing mode for preference or compatibility
 - **No sixel** - Sacrifices max quality for broad compatibility
