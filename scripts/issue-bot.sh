@@ -175,6 +175,39 @@ check_awaiting_verification() {
         --jq '.comments[] | select(.body | contains("Awaiting User Verification")) | .body' 2>/dev/null | head -1 | grep -q "Awaiting User Verification"
 }
 
+# Check if there's user feedback after the last bot implementation/verification comment
+# Returns 0 (true) if there's user feedback that needs addressing
+check_user_feedback_pending() {
+    local issue_number="$1"
+
+    # Get all comments with timestamps and authors
+    local comments_json=$(gh issue view "$issue_number" --json comments 2>/dev/null)
+
+    # Find the timestamp of the last bot comment (Implementation Complete or Awaiting Verification)
+    local last_bot_time=$(echo "$comments_json" | jq -r '
+        .comments
+        | map(select(.body | contains("Bot Implementation Complete") or contains("Awaiting User Verification")))
+        | last
+        | .createdAt // empty
+    ')
+
+    if [[ -z "$last_bot_time" ]]; then
+        return 1  # No bot comment found, no feedback to check
+    fi
+
+    # Check if there are any non-bot comments after the last bot comment
+    local user_feedback=$(echo "$comments_json" | jq -r --arg bot_time "$last_bot_time" '
+        .comments
+        | map(select(.createdAt > $bot_time and (.body | contains("🤖") | not)))
+        | length
+    ')
+
+    if [[ "$user_feedback" -gt 0 ]]; then
+        return 0  # User feedback exists
+    fi
+    return 1  # No user feedback
+}
+
 # Build prompt for Phase 2: Implementation
 build_implementation_prompt() {
     local issue_number="$1"
@@ -317,15 +350,27 @@ process_issue() {
     local investigation_section=""
     local verifiable=""
     local skip_to_phase=1
+    local has_user_feedback=false
+
+    # Check for pending user feedback first
+    if check_user_feedback_pending "$issue_number"; then
+        log "Phase detection: User feedback pending - will re-run implementation"
+        has_user_feedback=true
+    fi
 
     # Check if implementation is already complete
     if check_implementation_complete "$issue_number"; then
-        log "Phase detection: Implementation already complete, skipping to Phase 3"
-        skip_to_phase=3
-        # We need verifiable for Phase 3, try to extract it
         investigation_section=$(get_existing_investigation "$issue_number" || echo "")
         verifiable=$(extract_field "$investigation_section" "VERIFIABLE")
         [[ -z "$verifiable" ]] && verifiable="NO"
+
+        if [[ "$has_user_feedback" == "true" ]]; then
+            log "Phase detection: Implementation complete but user feedback exists, re-running Phase 2"
+            skip_to_phase=2
+        else
+            log "Phase detection: Implementation already complete, skipping to Phase 3"
+            skip_to_phase=3
+        fi
     # Check if investigation is already complete
     elif investigation_section=$(get_existing_investigation "$issue_number"); then
         log "Phase detection: Investigation already complete, skipping to Phase 2"
