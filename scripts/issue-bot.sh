@@ -102,14 +102,12 @@ get_next_issue() {
 build_investigation_prompt() {
     local issue_number="$1"
     local issue_title="$2"
-    local issue_body="$3"
+    local issue_context="$3"
 
     cat <<EOF
 You are investigating GitHub issue #${issue_number}: ${issue_title}
 
-## Issue Description
-
-${issue_body}
+${issue_context}
 
 ## Your Task: Investigation Only
 
@@ -399,7 +397,11 @@ process_issue() {
     if [[ $skip_to_phase -le 1 ]]; then
         log "Phase 1: Investigation..."
 
-        local investigation_prompt=$(build_investigation_prompt "$issue_number" "$issue_title" "$issue_body")
+        # Fetch issue with all comments (important for re-investigations after user feedback)
+        log "Fetching issue data with comments..."
+        local issue_context=$(fetch_issue_with_comments "$issue_number")
+
+        local investigation_prompt=$(build_investigation_prompt "$issue_number" "$issue_title" "$issue_context")
         local investigation_output=$(run_claude "$investigation_prompt" "/tmp/claude-issue-${issue_number}-phase1.log")
 
         investigation_section=$(extract_section "$investigation_output" "---INVESTIGATION_RESULT---" "---END_INVESTIGATION---")
