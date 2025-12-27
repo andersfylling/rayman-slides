@@ -52,10 +52,15 @@ func run() error {
 	defer ticker.Stop()
 
 	running := true
-	var currentIntents protocol.Intent
+
+	// Track when each intent was last pressed (for simulating held keys)
+	// Terminals don't send "key held" events, only "key pressed" with repeat
+	intentLastPressed := make(map[protocol.Intent]time.Time)
+	const intentHoldDuration = 150 * time.Millisecond // How long to keep intent active after last press
 
 	for running {
 		// Process all pending input events
+		now := time.Now()
 		for {
 			event, ok := renderer.PollInput()
 			if !ok {
@@ -66,9 +71,18 @@ func run() error {
 			case render.InputQuit:
 				running = false
 			case render.InputKey:
-				currentIntents |= event.Intent
+				// Record when this intent was pressed
+				intentLastPressed[event.Intent] = now
 			case render.InputResize:
 				// Handled by renderer
+			}
+		}
+
+		// Build current intents from all recently-pressed keys
+		var currentIntents protocol.Intent
+		for intent, lastPressed := range intentLastPressed {
+			if now.Sub(lastPressed) < intentHoldDuration {
+				currentIntents |= intent
 			}
 		}
 
@@ -78,9 +92,6 @@ func run() error {
 			// Update game
 			world.SetPlayerIntent(1, currentIntents)
 			world.Update()
-
-			// Clear intents after processing
-			currentIntents = protocol.IntentNone
 
 			// Get camera position (follow player)
 			playerX, playerY, _ := world.GetPlayerPosition()
