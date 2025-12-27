@@ -99,7 +99,9 @@ func (w *World) runInputSystem() {
 	}
 }
 
-// runAttackSystem handles attack charging and fist launching
+// runAttackSystem handles instant attack on key press
+// Attack fires immediately when the key is pressed (rising edge detection).
+// This avoids the fundamental terminal limitation of not having key release events.
 func (w *World) runAttackSystem() {
 	// Collect fists to spawn (can't spawn during query iteration)
 	type fistSpawn struct {
@@ -123,80 +125,30 @@ func (w *World) runAttackSystem() {
 
 		attackPressed := ctrl.Intents&protocol.IntentAttack != 0
 
-		// Start charging when attack key is pressed
-		if attackPressed && !attack.IsCharging && !attack.Attacking {
-			attack.IsCharging = true
-			attack.ChargeStart = w.Tick
-			attack.ReleaseDebounce = 0
+		// Detect rising edge: key just pressed this frame (wasn't pressed last frame)
+		attackJustPressed := attackPressed && !attack.AttackWasPressed
+
+		// Update state for next frame's edge detection
+		attack.AttackWasPressed = attackPressed
+
+		// Fire immediately on key press, if not in cooldown
+		if attackJustPressed && !attack.Attacking {
+			// Spawn fist projectile immediately with fixed distance
+			fistsToSpawn = append(fistsToSpawn, fistSpawn{
+				x:           pos.X,
+				y:           pos.Y,
+				facingRight: attack.FacingRight,
+				distance:    MinFistDistance,
+				ownerID:     player.ID,
+			})
+
+			// Start punch animation (also serves as cooldown)
+			attack.Attacking = true
+			attack.TicksLeft = AttackCooldown
 		}
 
-		// Track release debounce to handle terminal key repeat gaps
-		if attack.IsCharging {
-			if attackPressed {
-				// Key is still pressed, reset debounce counter
-				attack.ReleaseDebounce = 0
-			} else {
-				// Key appears released, increment debounce counter
-				attack.ReleaseDebounce++
-
-				// Only launch fist after key has been released for multiple frames
-				if attack.ReleaseDebounce >= ReleaseDebounceThreshold {
-					attack.IsCharging = false
-					attack.ReleaseDebounce = 0
-
-					// Calculate charge duration and distance
-					chargeTicks := w.Tick - attack.ChargeStart
-					if chargeTicks > MaxChargeTicks {
-						chargeTicks = MaxChargeTicks
-					}
-
-					// Linear interpolation from min to max distance based on charge
-					chargeRatio := float64(chargeTicks) / float64(MaxChargeTicks)
-					distance := MinFistDistance + chargeRatio*(MaxFistDistance-MinFistDistance)
-
-					// Spawn fist projectile
-					fistsToSpawn = append(fistsToSpawn, fistSpawn{
-						x:           pos.X,
-						y:           pos.Y,
-						facingRight: attack.FacingRight,
-						distance:    distance,
-						ownerID:     player.ID,
-					})
-
-					// Start punch animation
-					attack.Attacking = true
-					attack.TicksLeft = AttackDuration
-				}
-			}
-		}
-
-		// Update sprite based on state
-		if attack.IsCharging {
-			// Charging pose with pulsing animation
-			// Cycle between charge levels every 10 ticks for visual feedback
-			chargeTicks := w.Tick - attack.ChargeStart
-			pulsePhase := (chargeTicks / 10) % 3 // 0, 1, or 2
-
-			if attack.FacingRight {
-				switch pulsePhase {
-				case 0:
-					sprite.ID = "player_charge_right_1"
-				case 1:
-					sprite.ID = "player_charge_right_2"
-				default:
-					sprite.ID = "player_charge_right_3"
-				}
-			} else {
-				switch pulsePhase {
-				case 0:
-					sprite.ID = "player_charge_left_1"
-				case 1:
-					sprite.ID = "player_charge_left_2"
-				default:
-					sprite.ID = "player_charge_left_3"
-				}
-			}
-		} else if attack.Attacking {
+		// Update sprite and animation state
+		if attack.Attacking {
 			if attack.TicksLeft > 0 {
 				attack.TicksLeft--
 				// Punch animation (arm extended, no fist attached)

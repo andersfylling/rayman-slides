@@ -57,18 +57,12 @@ type AttackState struct {
 	TicksLeft   int  // Animation ticks remaining
 	FacingRight bool // Direction of attack
 
-	// Charging state
-	IsCharging  bool   // Currently holding attack key
-	ChargeStart uint64 // Tick when charge started
-
-	// Release debounce - prevents false releases from terminal key repeat gaps
-	ReleaseDebounce int // Frames since attack key was last detected as released
+	// Attack key tracking for edge detection
+	AttackWasPressed bool // Was attack key pressed last frame (for edge detection)
 }
 
-// ReleaseDebounceThreshold is how many consecutive frames the key must be
-// released before we actually launch the fist. The input layer uses a 100ms
-// timeout once key repeat is detected, so this provides responsive release.
-const ReleaseDebounceThreshold = 2
+// AttackCooldown is how many ticks must pass before another attack can be initiated
+const AttackCooldown = 15 // ~250ms at 60 TPS
 
 // AttackDuration is how many ticks the punch animation lasts
 const AttackDuration = 8
