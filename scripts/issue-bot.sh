@@ -398,6 +398,78 @@ run_claude() {
     fi
 }
 
+# Get last N lines of a log file for error context
+get_log_tail() {
+    local log_file="$1"
+    local lines="${2:-50}"
+
+    if [[ -f "$log_file" ]]; then
+        tail -n "$lines" "$log_file" 2>/dev/null | head -c 3000  # Limit to 3000 chars
+    else
+        echo "Log file not found"
+    fi
+}
+
+# Post failure with context and attempt analysis
+post_failure_with_analysis() {
+    local issue_number="$1"
+    local phase="$2"
+    local log_file="$3"
+    local expected_marker="$4"
+
+    local log_tail=$(get_log_tail "$log_file" 100)
+
+    # Check if Claude produced any output
+    if [[ -z "$log_tail" ]] || [[ "$log_tail" == "Log file not found" ]]; then
+        gh issue comment "$issue_number" --body "🤖 **Bot ${phase} Failed**
+
+❌ Claude produced no output. This could be due to:
+- Timeout (current limit: ${CLAUDE_TIMEOUT:-300}s)
+- API error
+- Permission issues
+
+**Expected marker:** \`${expected_marker}\`
+
+Manual intervention required." 2>/dev/null || true
+        return
+    fi
+
+    # Check if the expected marker exists anywhere in output
+    if grep -q -- "$expected_marker" "$log_file" 2>/dev/null; then
+        gh issue comment "$issue_number" --body "🤖 **Bot ${phase} Failed**
+
+⚠️ Claude completed but output parsing failed. The expected marker was found but couldn't be extracted properly.
+
+**Expected marker:** \`${expected_marker}\`
+
+<details>
+<summary>Last 100 lines of output (click to expand)</summary>
+
+\`\`\`
+${log_tail}
+\`\`\`
+</details>
+
+Manual intervention required. Check if Claude's output format matches expectations." 2>/dev/null || true
+    else
+        gh issue comment "$issue_number" --body "🤖 **Bot ${phase} Failed**
+
+❌ Claude completed but did not produce the expected output format.
+
+**Expected marker:** \`${expected_marker}\`
+
+<details>
+<summary>Last 100 lines of output (click to expand)</summary>
+
+\`\`\`
+${log_tail}
+\`\`\`
+</details>
+
+This usually means Claude got stuck, ran into an error, or the task was too complex. Manual intervention required." 2>/dev/null || true
+    fi
+}
+
 # Extract section from Claude output
 extract_section() {
     local output="$1"
@@ -487,11 +559,7 @@ process_issue() {
             log "Phase 0 failed: Could not extract conflict check results"
             gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
             gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
-            gh issue comment "$issue_number" --body "🤖 **Bot Conflict Check Failed**
-
-The issue bot could not complete the conflict check phase. Manual intervention may be required.
-
-See logs for details." 2>/dev/null || true
+            post_failure_with_analysis "$issue_number" "Conflict Check" "/tmp/claude-issue-${issue_number}-phase0.log" "---CONFLICT_CHECK_RESULT---"
             return 1
         fi
 
@@ -552,11 +620,7 @@ _Proceeding to investigation phase..._" 2>/dev/null || true
             log "Phase 1 failed: Could not extract investigation results"
             gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
             gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
-            gh issue comment "$issue_number" --body "🤖 **Bot Investigation Failed**
-
-The issue bot could not complete the investigation phase. Manual intervention may be required.
-
-See logs for details." 2>/dev/null || true
+            post_failure_with_analysis "$issue_number" "Investigation" "/tmp/claude-issue-${issue_number}-phase1.log" "---INVESTIGATION_RESULT---"
             return 1
         fi
 
@@ -627,11 +691,7 @@ _Proceeding to implementation phase..._" 2>/dev/null || true
             log "Phase 2 failed: Could not extract implementation results"
             gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
             gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
-            gh issue comment "$issue_number" --body "🤖 **Bot Implementation Failed**
-
-The issue bot could not complete the implementation phase. Manual intervention may be required.
-
-See logs for details." 2>/dev/null || true
+            post_failure_with_analysis "$issue_number" "Implementation" "/tmp/claude-issue-${issue_number}-phase2.log" "---IMPLEMENTATION_RESULT---"
             return 1
         fi
 
