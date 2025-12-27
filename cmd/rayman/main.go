@@ -62,10 +62,10 @@ func run() error {
 	intentPressCount := make(map[protocol.Intent]int) // Count key events to detect repeating keys
 
 	// Two-phase key hold detection:
-	// - Initial phase: Wait 600ms for terminal initial key repeat delay
-	// - Repeat phase: Once key is repeating, use 100ms timeout for faster release detection
-	const initialHoldDuration = 600 * time.Millisecond // First press: wait for terminal key repeat to start
-	const repeatHoldDuration = 100 * time.Millisecond  // After repeat starts: faster release detection
+	// - Initial phase: Wait for terminal initial key repeat delay (~500ms on most systems)
+	// - Repeat phase: Once key is repeating, use timeout close to key repeat interval (~30-50ms)
+	const initialHoldDuration = 500 * time.Millisecond // First press: wait for terminal key repeat to start
+	const repeatHoldDuration = 40 * time.Millisecond   // After repeat starts: ~1.3x typical key repeat interval
 
 	for running {
 		// Process all pending input events
