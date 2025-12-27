@@ -21,9 +21,9 @@ server: build
 lookup: build
 	./bin/lookup
 
-# Run tests
+# Run tests with race detection
 test:
-	go test -v ./...
+	go test -race -v ./...
 
 # Run tests with coverage
 cover:
