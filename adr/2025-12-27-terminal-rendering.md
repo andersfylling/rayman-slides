@@ -204,17 +204,58 @@ sprite := atlas.Get("player")  // → {Char: '@', FG: green}
 - **Testable** - Game logic doesn't depend on rendering
 - **Future-proof** - Add new renderers (Vulkan, SDL) without changing game code
 
+### GameRenderer Interface
+
+The high-level interface that all renderers implement:
+
+```go
+type GameRenderer interface {
+    // Lifecycle
+    Init() error
+    Close()
+
+    // Frame management
+    BeginFrame()
+    EndFrame()
+
+    // World rendering - renderer handles its own sprite atlas
+    RenderWorld(world *game.World, camera Camera)
+
+    // UI rendering
+    RenderText(x, y float64, text string, color Color)
+
+    // Input - each renderer handles its own input mechanism
+    PollInput() (InputEvent, bool)
+
+    // Viewport info
+    ViewportSize() (width, height float64)
+}
+```
+
+This interface works for both terminal and graphical renderers:
+- Terminal: positions are character cells, input via stdin
+- SDL/Vulkan: positions are pixels, input via SDL events
+
 ### File Structure
 
 ```
 render/
+  renderer.go    # GameRenderer interface, Camera, InputEvent types
   atlas.go       # SpriteAtlas type, default atlases
-  detect.go      # Terminal capability detection
-  renderer.go    # Renderer interface
-  tcell.go       # tcell-based terminal renderer
-  ascii.go       # Plain ASCII renderer
-  halfblock.go   # Half-block renderer
-  braille.go     # Braille renderer
+  detect.go      # Terminal capability detection, renderer selection
+  tcell.go       # tcell-based terminal renderer (implements GameRenderer)
+```
+
+Future graphical renderers would be added as separate packages:
+
+```
+render/
+  sdl/           # SDL2 renderer (build tag: sdl)
+    renderer.go
+    atlas.go
+  vulkan/        # Vulkan renderer (build tag: vulkan)
+    renderer.go
+    atlas.go
 ```
 
 ## Consequences

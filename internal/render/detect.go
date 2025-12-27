@@ -43,31 +43,29 @@ func Detect() Capability {
 }
 
 // SelectRenderer picks the best renderer for the terminal
-func SelectRenderer(cap Capability, override Mode) Renderer {
-	mode := override
+// Currently returns TcellRenderer which supports all modes internally
+func SelectRenderer(cap Capability, override Mode) GameRenderer {
+	// TcellRenderer handles all terminal modes via tcell
+	// In the future, we can return different implementations:
+	// - SDLRenderer for graphical output
+	// - VulkanRenderer for GPU-accelerated graphics
+	renderer := NewTcellRenderer()
 
-	// Auto-detect if no override
-	if mode == ModeAuto {
-		switch {
-		case cap.Truecolor:
-			mode = ModeHalfBlock
-		case cap.Color256:
-			mode = ModeHalfBlock
-		default:
-			mode = ModeASCII
-		}
-	}
-
-	switch mode {
+	// Configure atlas based on mode
+	switch override {
 	case ModeASCII:
-		return NewASCIIRenderer()
+		renderer.SetAtlas(DefaultASCIIAtlas())
 	case ModeHalfBlock:
-		return NewHalfBlockRenderer(cap.Truecolor)
+		renderer.SetAtlas(DefaultHalfBlockAtlas())
 	case ModeBraille:
-		return NewBrailleRenderer()
+		// TODO: BrailleAtlas when implemented
+		renderer.SetAtlas(DefaultASCIIAtlas())
 	default:
-		return NewASCIIRenderer()
+		// Auto: use ASCII for now, could be smarter based on capabilities
+		renderer.SetAtlas(DefaultASCIIAtlas())
 	}
+
+	return renderer
 }
 
 // Mode selects the rendering mode
