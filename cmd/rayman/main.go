@@ -59,7 +59,13 @@ func run() error {
 	// Track when each intent was last pressed (for simulating held keys)
 	// Terminals don't send "key held" events, only "key pressed" with repeat
 	intentLastPressed := make(map[protocol.Intent]time.Time)
-	const intentHoldDuration = 600 * time.Millisecond // How long to keep intent active after last press (must exceed terminal initial key repeat delay ~500ms)
+	intentPressCount := make(map[protocol.Intent]int) // Count key events to detect repeating keys
+
+	// Two-phase key hold detection:
+	// - Initial phase: Wait 600ms for terminal initial key repeat delay
+	// - Repeat phase: Once key is repeating, use 100ms timeout for faster release detection
+	const initialHoldDuration = 600 * time.Millisecond // First press: wait for terminal key repeat to start
+	const repeatHoldDuration = 100 * time.Millisecond  // After repeat starts: faster release detection
 
 	for running {
 		// Process all pending input events
@@ -74,8 +80,9 @@ func run() error {
 			case render.InputQuit:
 				running = false
 			case render.InputKey:
-				// Record when this intent was pressed
+				// Record when this intent was pressed and count presses
 				intentLastPressed[event.Intent] = now
+				intentPressCount[event.Intent]++
 			case render.InputResize:
 				// Handled by renderer
 			}
@@ -84,8 +91,17 @@ func run() error {
 		// Build current intents from all recently-pressed keys
 		var currentIntents protocol.Intent
 		for intent, lastPressed := range intentLastPressed {
-			if now.Sub(lastPressed) < intentHoldDuration {
+			// Use shorter timeout once key is repeating (press count >= 2)
+			holdDuration := initialHoldDuration
+			if intentPressCount[intent] >= 2 {
+				holdDuration = repeatHoldDuration
+			}
+
+			if now.Sub(lastPressed) < holdDuration {
 				currentIntents |= intent
+			} else {
+				// Key has expired, reset press count for next press
+				delete(intentPressCount, intent)
 			}
 		}
 

@@ -66,9 +66,8 @@ type AttackState struct {
 }
 
 // ReleaseDebounceThreshold is how many consecutive frames the key must be
-// released before we actually launch the fist. With intentHoldDuration at 600ms
-// (exceeding terminal initial key repeat delay), we can use a small value for
-// responsive release.
+// released before we actually launch the fist. The input layer uses a 100ms
+// timeout once key repeat is detected, so this provides responsive release.
 const ReleaseDebounceThreshold = 2
 
 // AttackDuration is how many ticks the punch animation lasts
