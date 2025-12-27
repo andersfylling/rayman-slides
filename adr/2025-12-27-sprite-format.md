@@ -4,174 +4,174 @@
 
 ## Context
 
-Need a standardized format for sprites and visual assets. Format must be:
-- Human-readable (for debugging and manual editing)
-- Machine-generatable (AI tools like Google Nano, GPT, etc.)
-- Simple enough that the format itself can be described in a prompt
-
-Since we render to terminal, sprites are not traditional pixel art but ASCII/block representations.
+Need a format for sprites and visual assets. Requirements:
+- Single source of truth (not duplicated per render mode)
+- Standard tooling (image editors, AI generators)
+- Converts to ASCII/half-block/braille at build or runtime
 
 ## Options Considered
 
-### PNG/Image Files
+### YAML ASCII Art
 
-Traditional sprite sheets as images.
-
-**Workflow:** Create in image editor → convert to ASCII at load time
-
-**Pros:**
-- Standard format, many tools
-- Can use existing pixel art
-
-**Cons:**
-- Conversion to ASCII loses information
-- Not directly editable as text
-- AI image generation is separate from text generation
-- Overkill for terminal rendering
-
-### Custom Binary Format
-
-Packed binary with palette and character data.
-
-**Pros:**
-- Compact file size
-- Fast loading
-
-**Cons:**
-- Not human-readable
-- Hard to generate with AI
-- Custom tooling required
-- Debugging nightmare
-
-### JSON Sprite Definition
-
-JSON object with character grid and metadata.
-
-**Workflow:** Write/generate JSON → load directly
+Define sprites directly as ASCII text in YAML.
 
 **Pros:**
 - Human-readable
-- AI can generate valid JSON easily
-- Standard parsing libraries
+- Git-friendly diffs
+- AI can generate text
 
 **Cons:**
-- Verbose for large sprites
-- Escape characters for special chars
-- No comments
+- Not a real image (can't preview easily)
+- Must maintain ASCII manually
+- Different "source" per render mode
+- Artists can't use standard tools
 
-### YAML Sprite Definition
+### PNG as Source of Truth
 
-YAML with character grid using block scalars.
+Standard PNG images, converted to terminal representation.
 
-**Workflow:** Write/generate YAML → load directly
+**Workflow:** Create/generate PNG → converter produces ASCII/half-block/braille
 
 **Pros:**
-- Very human-readable
-- Block scalars perfect for ASCII art
-- Comments allowed
-- AI generates YAML well
+- Standard format, any image editor works
+- AI image generators output PNG directly
+- Single source, multiple outputs
+- Preview sprites visually
+- Existing sprite art can be imported
 
 **Cons:**
-- Whitespace sensitive (can cause bugs)
-- Slightly slower parsing than JSON
+- Need conversion tooling
+- Conversion quality depends on algorithm
+- Larger files than text
 
-### Plain Text with Header
+### SVG as Source of Truth
 
-Simple text file: metadata lines then raw ASCII.
+Vector graphics, rasterize then convert.
 
 **Pros:**
-- Maximum simplicity
-- Direct copy-paste of ASCII art
-- Easy AI generation
+- Scales to any resolution
+- Small file size
+- Text-based (git-friendly)
 
 **Cons:**
-- Custom parser needed
-- No standard structure
-- Limited metadata support
+- Overkill for small pixel art
+- Extra rasterization step
+- Less tooling than PNG
+
+### Aseprite Format (.ase/.aseprite)
+
+Native format from popular pixel art tool.
+
+**Pros:**
+- Layers, animation frames built-in
+- Industry standard for pixel art
+
+**Cons:**
+- Proprietary format
+- Requires Aseprite or compatible tools
+- AI tools don't output this format
 
 ## Decision
 
-**YAML with block scalars for sprites:**
-
-```yaml
-# player.yaml
-name: player_idle
-width: 5
-height: 4
-anchor: [2, 3]  # Origin point (feet)
-frames: 1
-
-art: |
-   O
-  /|\
-  / \
-
-colors: |
-  .W.
-  WWW
-  B.B
-
-palette:
-  W: "#FFFFFF"  # White
-  B: "#4444FF"  # Blue
-  .: transparent
-```
-
-For animations:
-```yaml
-name: player_walk
-width: 5
-height: 4
-anchor: [2, 3]
-frames: 2
-framerate: 8  # FPS
-
-art:
-  - |
-     O
-    /|\
-    / \
-  - |
-     O
-    /|\
-     |\\
-
-colors:
-  - |
-    .W.
-    WWW
-    B.B
-  - |
-    .W.
-    WWW
-    B.B
-```
-
-### AI Generation Prompt Template
+**PNG as source of truth with build-time conversion:**
 
 ```
-Generate a YAML sprite for [description].
-Use this format:
-- name: identifier
-- width/height: dimensions in characters
-- art: block scalar with ASCII art using these chars: O o @ # = - | / \ _ . space
-- colors: matching grid with single-char palette keys
-- palette: map of keys to hex colors, use "transparent" for empty
-
-Example:
-name: enemy_slime
-width: 3
-height: 2
-art: |
-  ___
- (o_o)
-colors: |
-  GGG
-  GWGW
-palette:
-  G: "#00FF00"
-  W: "#FFFFFF"
+assets/
+  sprites/
+    player/
+      idle.png       # Source image (e.g., 16x24 pixels)
+      walk.png       # Can be sprite sheet with multiple frames
+      walk.json      # Optional metadata (frame count, timing)
+    enemies/
+      slime.png
 ```
+
+### Conversion Pipeline
+
+```
+PNG → Converter → Multiple outputs
+
+                  ┌─► ascii.go    (plain ASCII: @#%*+-.  )
+idle.png ────────►├─► halfblock.go (▀▄█ with colors)
+                  └─► braille.go  (⠁⠂⠃...⣿ patterns)
+```
+
+Converter runs at:
+- **Build time** - Pre-generate all representations, embed in binary
+- **Runtime** - Convert on load (slower startup, but more flexible)
+
+Recommend build-time for release, runtime for development.
+
+### Conversion Algorithm
+
+For each render mode:
+
+**ASCII:**
+```
+1. Convert to grayscale
+2. Map brightness to character: " .:-=+*#%@"
+3. Optionally map hue to ANSI color
+```
+
+**Half-block:**
+```
+1. For each 1x2 pixel pair (top, bottom):
+   - Top pixel → foreground color
+   - Bottom pixel → background color
+   - Output: ▀ with fg/bg colors
+```
+
+**Braille:**
+```
+1. For each 2x4 pixel block:
+   - Threshold each pixel to on/off
+   - Map to braille dot pattern (8 dots = 256 patterns)
+   - Output: braille character + color
+```
+
+### Metadata File (Optional)
+
+For animations and sprite sheets:
+
+```json
+{
+  "frames": 4,
+  "frame_width": 16,
+  "frame_height": 24,
+  "fps": 8,
+  "anchor": [8, 24]
+}
+```
+
+Or infer from filename: `walk_4x1_8fps.png` (4 frames, 1 row, 8 FPS)
+
+### Converter Tool
+
+```bash
+# Convert single sprite
+./tools/sprite-convert idle.png --mode ascii
+
+# Convert all sprites, output Go code
+./tools/sprite-convert assets/sprites/ --output internal/sprites/generated.go
+
+# Preview in terminal
+./tools/sprite-convert idle.png --preview
+```
+
+### AI Image Generation
+
+Can use any image AI:
+- DALL-E, Midjourney, Stable Diffusion for concepts
+- Pixel art specific models for cleaner results
+- Google's models, etc.
+
+Prompt example:
+```
+16x24 pixel art sprite of a cartoon character running,
+side view, transparent background, retro game style
+```
+
+Then convert the output PNG.
 
 ### Directory Structure
 
@@ -179,26 +179,35 @@ palette:
 assets/
   sprites/
     player/
-      idle.yaml
-      walk.yaml
-      jump.yaml
-      attack.yaml
+      idle.png
+      walk.png
+      walk.json       # Animation metadata
+      jump.png
+      attack.png
     enemies/
-      slime.yaml
-      bat.yaml
+      slime.png
+      bat.png
     items/
-      coin.yaml
-      heart.yaml
+      coin.png
+      heart.png
     tiles/
-      ground.yaml
-      platform.yaml
+      ground.png
+      platform.png
+
+tools/
+  sprite-convert/     # Conversion tool
+    main.go
+    ascii.go
+    halfblock.go
+    braille.go
 ```
 
 ## Consequences
 
-- **AI-friendly** - YAML is well-understood by LLMs, can generate sprites from descriptions
-- **Human-editable** - Can tweak sprites in any text editor
-- **Git-friendly** - Text diffs show exactly what changed
-- **Whitespace sensitivity** - Must be careful with trailing spaces in art blocks
-- **Validation needed** - Should validate width/height match actual art dimensions
-- **Color layer optional** - Can omit colors block for single-color sprites
+- **Standard tooling** - Any image editor or AI tool works
+- **Single source** - PNG is truth, conversions are derived
+- **Visual preview** - Can see sprites without running game
+- **Import existing art** - Can use existing pixel art sprites
+- **Build step** - Need to run converter (can automate in Makefile)
+- **Conversion quality** - Results depend on algorithm tuning
+- **Larger assets** - PNGs bigger than text, but still tiny for pixel art
