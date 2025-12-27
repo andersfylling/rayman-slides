@@ -134,6 +134,47 @@ fetch_issue_with_comments() {
     fi
 }
 
+# Check if investigation phase was already completed
+get_existing_investigation() {
+    local issue_number="$1"
+
+    # Look for our investigation comment
+    local investigation_comment=$(gh issue view "$issue_number" --json comments \
+        --jq '.comments[] | select(.body | contains("Bot Investigation Complete")) | .body' 2>/dev/null | head -1)
+
+    if [[ -z "$investigation_comment" ]]; then
+        return 1
+    fi
+
+    # Extract the fields from the comment
+    local files=$(echo "$investigation_comment" | grep -oP '(?<=\*\*Relevant Files:\*\* `)[^`]+' || echo "")
+    local root_cause=$(echo "$investigation_comment" | grep -oP '(?<=\*\*Root Cause:\*\* ).*' || echo "")
+    local approach=$(echo "$investigation_comment" | grep -oP '(?<=\*\*Approach:\*\* ).*' || echo "")
+    local verifiable=$(echo "$investigation_comment" | grep -oP '(?<=\*\*Programmatically Verifiable:\*\* )(YES|NO)' || echo "NO")
+
+    # Return as a structured format
+    echo "FILES: ${files}"
+    echo "ROOT_CAUSE: ${root_cause}"
+    echo "APPROACH: ${approach}"
+    echo "VERIFIABLE: ${verifiable}"
+}
+
+# Check if implementation phase was already completed
+check_implementation_complete() {
+    local issue_number="$1"
+
+    gh issue view "$issue_number" --json comments \
+        --jq '.comments[] | select(.body | contains("Bot Implementation Complete")) | .body' 2>/dev/null | head -1 | grep -q "Bot Implementation Complete"
+}
+
+# Check if awaiting user verification comment was already posted
+check_awaiting_verification() {
+    local issue_number="$1"
+
+    gh issue view "$issue_number" --json comments \
+        --jq '.comments[] | select(.body | contains("Awaiting User Verification")) | .body' 2>/dev/null | head -1 | grep -q "Awaiting User Verification"
+}
+
 # Build prompt for Phase 2: Implementation
 build_implementation_prompt() {
     local issue_number="$1"
@@ -271,35 +312,59 @@ process_issue() {
     fi
 
     # ============================================
+    # PHASE DETECTION: Check what's already done
+    # ============================================
+    local investigation_section=""
+    local verifiable=""
+    local skip_to_phase=1
+
+    # Check if implementation is already complete
+    if check_implementation_complete "$issue_number"; then
+        log "Phase detection: Implementation already complete, skipping to Phase 3"
+        skip_to_phase=3
+        # We need verifiable for Phase 3, try to extract it
+        investigation_section=$(get_existing_investigation "$issue_number" || echo "")
+        verifiable=$(extract_field "$investigation_section" "VERIFIABLE")
+        [[ -z "$verifiable" ]] && verifiable="NO"
+    # Check if investigation is already complete
+    elif investigation_section=$(get_existing_investigation "$issue_number"); then
+        log "Phase detection: Investigation already complete, skipping to Phase 2"
+        skip_to_phase=2
+        verifiable=$(extract_field "$investigation_section" "VERIFIABLE")
+        [[ -z "$verifiable" ]] && verifiable="NO"
+    fi
+
+    # ============================================
     # PHASE 1: Investigation
     # ============================================
-    log "Phase 1: Investigation..."
+    if [[ $skip_to_phase -le 1 ]]; then
+        log "Phase 1: Investigation..."
 
-    local investigation_prompt=$(build_investigation_prompt "$issue_number" "$issue_title" "$issue_body")
-    local investigation_output=$(run_claude "$investigation_prompt" "/tmp/claude-issue-${issue_number}-phase1.log")
+        local investigation_prompt=$(build_investigation_prompt "$issue_number" "$issue_title" "$issue_body")
+        local investigation_output=$(run_claude "$investigation_prompt" "/tmp/claude-issue-${issue_number}-phase1.log")
 
-    local investigation_section=$(extract_section "$investigation_output" "---INVESTIGATION_RESULT---" "---END_INVESTIGATION---")
+        investigation_section=$(extract_section "$investigation_output" "---INVESTIGATION_RESULT---" "---END_INVESTIGATION---")
 
-    if [[ -z "$investigation_section" ]]; then
-        log "Phase 1 failed: Could not extract investigation results"
-        gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
-        gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
-        gh issue comment "$issue_number" --body "🤖 **Bot Investigation Failed**
+        if [[ -z "$investigation_section" ]]; then
+            log "Phase 1 failed: Could not extract investigation results"
+            gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
+            gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
+            gh issue comment "$issue_number" --body "🤖 **Bot Investigation Failed**
 
 The issue bot could not complete the investigation phase. Manual intervention may be required.
 
 See logs for details." 2>/dev/null || true
-        return 1
-    fi
+            return 1
+        fi
 
-    local files=$(extract_field "$investigation_section" "FILES")
-    local root_cause=$(extract_field "$investigation_section" "ROOT_CAUSE")
-    local approach=$(extract_field "$investigation_section" "APPROACH")
-    local verifiable=$(extract_field "$investigation_section" "VERIFIABLE")
+        local files=$(extract_field "$investigation_section" "FILES")
+        local root_cause=$(extract_field "$investigation_section" "ROOT_CAUSE")
+        local approach=$(extract_field "$investigation_section" "APPROACH")
+        verifiable=$(extract_field "$investigation_section" "VERIFIABLE")
 
-    # Post investigation comment
-    log "Posting investigation findings..."
-    gh issue comment "$issue_number" --body "🤖 **Bot Investigation Complete**
+        # Post investigation comment
+        log "Posting investigation findings..."
+        gh issue comment "$issue_number" --body "🤖 **Bot Investigation Complete**
 
 **Relevant Files:** \`${files}\`
 
@@ -311,53 +376,57 @@ See logs for details." 2>/dev/null || true
 
 ---
 _Proceeding to implementation phase..._" 2>/dev/null || true
+    else
+        log "Phase 1: Skipped (already complete)"
+    fi
 
     # ============================================
     # PHASE 2: Implementation
     # ============================================
-    log "Phase 2: Implementation..."
+    if [[ $skip_to_phase -le 2 ]]; then
+        log "Phase 2: Implementation..."
 
-    # Re-fetch issue with all comments (including our investigation comment)
-    log "Fetching fresh issue data with comments..."
-    local issue_context=$(fetch_issue_with_comments "$issue_number")
+        # Re-fetch issue with all comments (including our investigation comment)
+        log "Fetching fresh issue data with comments..."
+        local issue_context=$(fetch_issue_with_comments "$issue_number")
 
-    local implementation_prompt=$(build_implementation_prompt "$issue_number" "$issue_title" "$issue_context" "$investigation_section" "$verifiable")
-    local implementation_output=$(run_claude "$implementation_prompt" "/tmp/claude-issue-${issue_number}-phase2.log")
+        local implementation_prompt=$(build_implementation_prompt "$issue_number" "$issue_title" "$issue_context" "$investigation_section" "$verifiable")
+        local implementation_output=$(run_claude "$implementation_prompt" "/tmp/claude-issue-${issue_number}-phase2.log")
 
-    local implementation_section=$(extract_section "$implementation_output" "---IMPLEMENTATION_RESULT---" "---END_IMPLEMENTATION---")
+        local implementation_section=$(extract_section "$implementation_output" "---IMPLEMENTATION_RESULT---" "---END_IMPLEMENTATION---")
 
-    if [[ -z "$implementation_section" ]]; then
-        log "Phase 2 failed: Could not extract implementation results"
-        gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
-        gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
-        gh issue comment "$issue_number" --body "🤖 **Bot Implementation Failed**
+        if [[ -z "$implementation_section" ]]; then
+            log "Phase 2 failed: Could not extract implementation results"
+            gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
+            gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
+            gh issue comment "$issue_number" --body "🤖 **Bot Implementation Failed**
 
 The issue bot could not complete the implementation phase. Manual intervention may be required.
 
 See logs for details." 2>/dev/null || true
-        return 1
-    fi
+            return 1
+        fi
 
-    local status=$(extract_field "$implementation_section" "STATUS")
-    local commit_sha=$(extract_field "$implementation_section" "COMMIT")
-    local summary=$(extract_field "$implementation_section" "SUMMARY")
-    local impl_error=$(extract_field "$implementation_section" "ERROR")
+        local status=$(extract_field "$implementation_section" "STATUS")
+        local commit_sha=$(extract_field "$implementation_section" "COMMIT")
+        local summary=$(extract_field "$implementation_section" "SUMMARY")
+        local impl_error=$(extract_field "$implementation_section" "ERROR")
 
-    if [[ "$status" != "SUCCESS" ]]; then
-        log "Phase 2 failed: Implementation unsuccessful"
-        gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
-        gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
-        gh issue comment "$issue_number" --body "🤖 **Bot Implementation Failed**
+        if [[ "$status" != "SUCCESS" ]]; then
+            log "Phase 2 failed: Implementation unsuccessful"
+            gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
+            gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
+            gh issue comment "$issue_number" --body "🤖 **Bot Implementation Failed**
 
 **Error:** ${impl_error}
 
 Manual intervention is required." 2>/dev/null || true
-        return 1
-    fi
+            return 1
+        fi
 
-    # Post implementation comment
-    log "Posting implementation results..."
-    gh issue comment "$issue_number" --body "🤖 **Bot Implementation Complete**
+        # Post implementation comment
+        log "Posting implementation results..."
+        gh issue comment "$issue_number" --body "🤖 **Bot Implementation Complete**
 
 **Commit:** ${commit_sha}
 
@@ -365,6 +434,9 @@ Manual intervention is required." 2>/dev/null || true
 
 ---
 _Proceeding to closure phase..._" 2>/dev/null || true
+    else
+        log "Phase 2: Skipped (already complete)"
+    fi
 
     # ============================================
     # PHASE 3: Awaiting User Verification
@@ -374,15 +446,16 @@ _Proceeding to closure phase..._" 2>/dev/null || true
     gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
     gh issue edit "$issue_number" --add-label "$LABEL_WAITING_USER" 2>/dev/null || true
 
-    # Never auto-close - always wait for user to verify and close
-    local verification_note=""
-    if [[ "$verifiable" == "YES" ]]; then
-        verification_note="The fix includes programmatic verification (build/tests pass)."
-    else
-        verification_note="This fix requires manual testing to verify."
-    fi
+    # Only post comment if not already posted
+    if ! check_awaiting_verification "$issue_number"; then
+        local verification_note=""
+        if [[ "$verifiable" == "YES" ]]; then
+            verification_note="The fix includes programmatic verification (build/tests pass)."
+        else
+            verification_note="This fix requires manual testing to verify."
+        fi
 
-    gh issue comment "$issue_number" --body "🤖 **Awaiting User Verification**
+        gh issue comment "$issue_number" --body "🤖 **Awaiting User Verification**
 
 The fix has been implemented and pushed to main.
 
@@ -391,6 +464,9 @@ ${verification_note}
 Please test the fix and:
 - **Close this issue** if the fix works correctly
 - **Comment** if there are still problems" 2>/dev/null || true
+    else
+        log "Phase 3: Verification comment already exists, skipping"
+    fi
 
     log "Issue #${issue_number} processing complete"
     return 0
