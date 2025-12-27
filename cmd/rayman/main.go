@@ -32,8 +32,11 @@ func run() error {
 	// Create game world
 	world := game.NewWorld()
 
-	// Load demo level
-	tileMap := game.DemoLevel()
+	// Get viewport size for level generation
+	vpWidth, vpHeight := renderer.ViewportSize()
+
+	// Load demo level sized to viewport
+	tileMap := game.DemoLevelForViewport(int(vpWidth), int(vpHeight))
 	world.SetTileMap(tileMap)
 
 	// Set tile map for rendering

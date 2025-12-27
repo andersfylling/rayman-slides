@@ -4,10 +4,20 @@ import (
 	"github.com/andersfylling/rayman-slides/internal/collision"
 )
 
-// DemoLevel creates a simple test level
+// DemoLevel creates a simple test level with default size
 func DemoLevel() *collision.TileMap {
-	// 40x20 tile level
-	width, height := 40, 20
+	return DemoLevelForViewport(40, 20)
+}
+
+// DemoLevelForViewport creates a test level sized to fit the given viewport
+func DemoLevelForViewport(width, height int) *collision.TileMap {
+	// Ensure minimum size for playability
+	if width < 40 {
+		width = 40
+	}
+	if height < 20 {
+		height = 20
+	}
 	tm := collision.NewTileMap(width, height)
 
 	// Floor
