@@ -127,34 +127,47 @@ func (w *World) runAttackSystem() {
 		if attackPressed && !attack.IsCharging && !attack.Attacking {
 			attack.IsCharging = true
 			attack.ChargeStart = w.Tick
+			attack.ReleaseDebounce = 0
 		}
 
-		// Release attack - launch the fist
-		if !attackPressed && attack.IsCharging {
-			attack.IsCharging = false
+		// Track release debounce to handle terminal key repeat gaps
+		if attack.IsCharging {
+			if attackPressed {
+				// Key is still pressed, reset debounce counter
+				attack.ReleaseDebounce = 0
+			} else {
+				// Key appears released, increment debounce counter
+				attack.ReleaseDebounce++
 
-			// Calculate charge duration and distance
-			chargeTicks := w.Tick - attack.ChargeStart
-			if chargeTicks > MaxChargeTicks {
-				chargeTicks = MaxChargeTicks
+				// Only launch fist after key has been released for multiple frames
+				if attack.ReleaseDebounce >= ReleaseDebounceThreshold {
+					attack.IsCharging = false
+					attack.ReleaseDebounce = 0
+
+					// Calculate charge duration and distance
+					chargeTicks := w.Tick - attack.ChargeStart
+					if chargeTicks > MaxChargeTicks {
+						chargeTicks = MaxChargeTicks
+					}
+
+					// Linear interpolation from min to max distance based on charge
+					chargeRatio := float64(chargeTicks) / float64(MaxChargeTicks)
+					distance := MinFistDistance + chargeRatio*(MaxFistDistance-MinFistDistance)
+
+					// Spawn fist projectile
+					fistsToSpawn = append(fistsToSpawn, fistSpawn{
+						x:           pos.X,
+						y:           pos.Y,
+						facingRight: attack.FacingRight,
+						distance:    distance,
+						ownerID:     player.ID,
+					})
+
+					// Start punch animation
+					attack.Attacking = true
+					attack.TicksLeft = AttackDuration
+				}
 			}
-
-			// Linear interpolation from min to max distance based on charge
-			chargeRatio := float64(chargeTicks) / float64(MaxChargeTicks)
-			distance := MinFistDistance + chargeRatio*(MaxFistDistance-MinFistDistance)
-
-			// Spawn fist projectile
-			fistsToSpawn = append(fistsToSpawn, fistSpawn{
-				x:           pos.X,
-				y:           pos.Y,
-				facingRight: attack.FacingRight,
-				distance:    distance,
-				ownerID:     player.ID,
-			})
-
-			// Start punch animation
-			attack.Attacking = true
-			attack.TicksLeft = AttackDuration
 		}
 
 		// Update sprite based on state

@@ -60,7 +60,15 @@ type AttackState struct {
 	// Charging state
 	IsCharging  bool   // Currently holding attack key
 	ChargeStart uint64 // Tick when charge started
+
+	// Release debounce - prevents false releases from terminal key repeat gaps
+	ReleaseDebounce int // Frames since attack key was last detected as released
 }
+
+// ReleaseDebounceThreshold is how many consecutive frames the key must be
+// released before we actually launch the fist. This prevents false releases
+// caused by gaps in terminal key repeat events.
+const ReleaseDebounceThreshold = 5
 
 // AttackDuration is how many ticks the punch animation lasts
 const AttackDuration = 8
