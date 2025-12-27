@@ -119,10 +119,10 @@ func (r *TcellRenderer) RenderWorld(world *game.World, camera Camera) {
 	if r.tileMap != nil && len(r.tileMap) > 0 && len(r.tileMap[0]) > 0 {
 		maxCamX := len(r.tileMap[0]) - screenW
 		maxCamY := len(r.tileMap) - screenH
-		if cameraX > maxCamX && maxCamX > 0 {
+		if cameraX > maxCamX && maxCamX >= 0 {
 			cameraX = maxCamX
 		}
-		if cameraY > maxCamY && maxCamY > 0 {
+		if cameraY > maxCamY && maxCamY >= 0 {
 			cameraY = maxCamY
 		}
 	}
