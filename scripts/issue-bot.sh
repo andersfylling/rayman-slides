@@ -218,7 +218,8 @@ extract_section() {
     local start_marker="$2"
     local end_marker="$3"
 
-    echo "$output" | sed -n "/${start_marker}/,/${end_marker}/p" | grep -v "$start_marker" | grep -v "$end_marker"
+    # Use -- to prevent markers starting with --- from being interpreted as options
+    echo "$output" | sed -n "/${start_marker}/,/${end_marker}/p" | grep -v -F -- "$start_marker" | grep -v -F -- "$end_marker"
 }
 
 # Extract field from section
@@ -226,7 +227,8 @@ extract_field() {
     local section="$1"
     local field="$2"
 
-    echo "$section" | grep "^${field}:" | sed "s/^${field}: *//"
+    # Use -- to prevent any pattern issues
+    echo "$section" | grep -E -- "^${field}:" | sed "s/^${field}: *//"
 }
 
 # Process a single issue
