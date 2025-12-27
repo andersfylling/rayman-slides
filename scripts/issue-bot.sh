@@ -37,12 +37,27 @@ LABEL_WAITING_USER="waiting-for-user"
 # Auto-accept issues from the project owner
 OWNER_USERNAME="andersfylling"
 
+# Track current Claude process for cleanup
+CLAUDE_PID=""
+
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
 }
 
 error() {
     log "ERROR: $*" >&2
+}
+
+# Cleanup function for graceful shutdown
+cleanup() {
+    log "Shutting down..."
+    if [[ -n "$CLAUDE_PID" ]] && kill -0 "$CLAUDE_PID" 2>/dev/null; then
+        log "Killing Claude process (PID: $CLAUDE_PID)..."
+        kill -TERM "$CLAUDE_PID" 2>/dev/null
+        sleep 1
+        kill -KILL "$CLAUDE_PID" 2>/dev/null
+    fi
+    exit 0
 }
 
 # Ensure we're in the project directory
@@ -382,20 +397,28 @@ run_claude() {
     local prompt_file=$(mktemp)
     echo "$prompt" > "$prompt_file"
 
-    local output=""
-    if output=$(timeout "${timeout_seconds}s" claude -p "$(cat "$prompt_file")" --allowedTools "Bash,Read,Write,Edit,Glob,Grep" 2>&1 | tee "$log_file"); then
-        rm -f "$prompt_file"
-        echo "$output"
-        return 0
-    else
-        local exit_code=$?
-        rm -f "$prompt_file"
-        if [[ $exit_code -eq 124 ]]; then
-            log "Claude timed out after ${timeout_seconds}s"
-        fi
-        echo "$output"
-        return $exit_code
+    # Run Claude in background so we can track the PID
+    timeout "${timeout_seconds}s" claude -p "$(cat "$prompt_file")" --allowedTools "Bash,Read,Write,Edit,Glob,Grep" 2>&1 | tee "$log_file" &
+    local tee_pid=$!
+
+    # Get the actual claude PID (parent of tee in the pipeline)
+    sleep 0.5
+    CLAUDE_PID=$(pgrep -P $$ -f "claude -p" 2>/dev/null | head -1)
+
+    # Wait for completion
+    wait $tee_pid
+    local exit_code=$?
+
+    CLAUDE_PID=""
+    rm -f "$prompt_file"
+
+    if [[ $exit_code -eq 124 ]]; then
+        log "Claude timed out after ${timeout_seconds}s"
     fi
+
+    # Read output from log file since we backgrounded
+    cat "$log_file" 2>/dev/null
+    return $exit_code
 }
 
 # Get last N lines of a log file for error context
@@ -807,7 +830,7 @@ main() {
 }
 
 # Handle Ctrl+C gracefully
-trap 'log "Shutting down..."; exit 0' INT TERM
+trap cleanup INT TERM
 
 # Run main
 main "$@"
