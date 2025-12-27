@@ -68,7 +68,6 @@ func (w *World) runInputSystem() {
 	const jumpSpeed = 1.0
 
 	query := w.controlFilter.Query()
-	defer query.Close()
 	for query.Next() {
 		vel, grounded, ctrl := query.Get()
 
@@ -95,7 +94,6 @@ func (w *World) runPhysicsSystem() {
 	const gravityAccel = 0.08
 
 	query := w.physicsFilter.Query()
-	defer query.Close()
 	for query.Next() {
 		pos, vel, grav, grounded := query.Get()
 
@@ -123,7 +121,6 @@ func (w *World) runCollisionSystem() {
 	}
 
 	query := w.physicsFilter.Query()
-	defer query.Close()
 	for query.Next() {
 		pos, vel, _, grounded := query.Get()
 
@@ -228,7 +225,6 @@ func (w *World) SpawnEnemy(enemyType string, x, y float64) ecs.Entity {
 // SetPlayerIntent sets the input intent for all players
 func (w *World) SetPlayerIntent(playerID int, intents protocol.Intent) {
 	query := w.controlFilter.Query()
-	defer query.Close()
 	for query.Next() {
 		_, _, ctrl := query.Get()
 		ctrl.Intents = intents
@@ -248,7 +244,6 @@ func (w *World) GetRenderables() []struct {
 	}
 
 	query := w.renderFilter.Query()
-	defer query.Close()
 	for query.Next() {
 		pos, sprite := query.Get()
 		result = append(result, struct {
