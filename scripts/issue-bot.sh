@@ -349,35 +349,30 @@ Manual intervention is required." 2>/dev/null || true
 _Proceeding to closure phase..._" 2>/dev/null || true
 
     # ============================================
-    # PHASE 3: Closure
+    # PHASE 3: Awaiting User Verification
     # ============================================
-    log "Phase 3: Closure..."
+    log "Phase 3: Awaiting user verification..."
 
     gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
+    gh issue edit "$issue_number" --add-label "$LABEL_WAITING_USER" 2>/dev/null || true
 
+    # Never auto-close - always wait for user to verify and close
+    local verification_note=""
     if [[ "$verifiable" == "YES" ]]; then
-        # Can be verified programmatically - close the issue
-        log "Issue is programmatically verifiable - closing..."
-        gh issue edit "$issue_number" --add-label "$LABEL_BOT_RESOLVED" 2>/dev/null || true
-        gh issue close "$issue_number" --comment "🤖 **Issue Resolved**
-
-This issue has been automatically fixed and verified. The fix has been pushed to main.
-
-If you encounter any problems, please reopen this issue." 2>/dev/null || true
+        verification_note="The fix includes programmatic verification (build/tests pass)."
     else
-        # Requires manual verification - add waiting-for-user label
-        log "Issue requires manual verification - waiting for user..."
-        gh issue edit "$issue_number" --add-label "$LABEL_WAITING_USER" 2>/dev/null || true
-        gh issue comment "$issue_number" --body "🤖 **Awaiting User Verification**
+        verification_note="This fix requires manual testing to verify."
+    fi
 
-The fix has been implemented and pushed to main, but this issue requires manual verification.
+    gh issue comment "$issue_number" --body "🤖 **Awaiting User Verification**
+
+The fix has been implemented and pushed to main.
+
+${verification_note}
 
 Please test the fix and:
 - **Close this issue** if the fix works correctly
-- **Reopen/comment** if there are still problems
-
-The \`waiting-for-user\` label will remain until you verify." 2>/dev/null || true
-    fi
+- **Comment** if there are still problems" 2>/dev/null || true
 
     log "Issue #${issue_number} processing complete"
     return 0
