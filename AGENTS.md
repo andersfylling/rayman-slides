@@ -100,12 +100,61 @@ This allows the same game logic to run anywhere from a headless server to a gami
 
 ## Build Commands
 
-*To be added as the project develops.*
+```bash
+# Build all binaries
+make build
+
+# Build and run client
+make run
+
+# Build and run dedicated server
+make server
+
+# Install dependencies
+make deps
+```
 
 ## Test Commands
 
-*To be added as the project develops.*
+```bash
+# Run all tests with race detection
+make test
+
+# Run tests with coverage report
+make cover
+
+# Run specific package tests
+go test -v ./internal/collision/...
+```
 
 ## Code Style
 
-*To be added as the project develops.*
+- **Formatting:** Run `make fmt` (uses `go fmt`)
+- **Linting:** Run `make lint` (uses `golangci-lint`)
+- **Naming:** Follow Go conventions (camelCase for private, PascalCase for public)
+- **Comments:** Document exported types and functions
+- **Error handling:** Return errors, don't panic (except for truly unrecoverable situations)
+- **Testing:** Use table-driven tests, follow test personas from [adr/2025-12-27-ci-testing.md](adr/2025-12-27-ci-testing.md)
+
+### ECS Patterns
+
+When working with the ECS:
+
+```go
+// Create entities via mappers
+entity := w.playerMapper.NewEntity(&Position{...}, &Velocity{...}, ...)
+
+// Query entities via filters
+query := w.renderFilter.Query()
+for query.Next() {
+    pos, sprite := query.Get()
+    // Use components...
+}
+```
+
+### Adding New Components
+
+1. Define the component struct in `internal/game/components.go`
+2. Add a mapper if needed for entity creation
+3. Add a filter if needed for querying
+4. Update systems in `internal/game/world.go`
