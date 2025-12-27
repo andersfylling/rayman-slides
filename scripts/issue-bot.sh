@@ -28,10 +28,14 @@ POLL_INTERVAL="${POLL_INTERVAL:-15}"
 DRY_RUN="${DRY_RUN:-0}"
 
 # Labels
+LABEL_ACCEPTED="accepted"
 LABEL_IN_PROGRESS="bot-in-progress"
 LABEL_BOT_RESOLVED="bot-resolved"
 LABEL_BOT_FAILED="bot-failed"
 LABEL_WAITING_USER="waiting-for-user"
+
+# Auto-accept issues from the project owner
+OWNER_USERNAME="andersfylling"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -63,6 +67,23 @@ check_dependencies() {
     fi
 }
 
+# Auto-accept issues from the project owner
+auto_accept_owner_issues() {
+    log "Checking for owner issues to auto-accept..."
+
+    # Get open issues from owner without accepted label
+    local owner_issues=$(gh issue list \
+        --state open \
+        --author "$OWNER_USERNAME" \
+        --json number,labels \
+        --jq ".[] | select(.labels | map(.name) | index(\"$LABEL_ACCEPTED\") | not) | .number" 2>/dev/null)
+
+    for issue_number in $owner_issues; do
+        log "Issue #${issue_number}: Auto-accepting (created by $OWNER_USERNAME)"
+        gh issue edit "$issue_number" --add-label "$LABEL_ACCEPTED" 2>/dev/null || true
+    done
+}
+
 # Check waiting-for-user issues for new user feedback and remove label if found
 check_waiting_issues_for_feedback() {
     log "Checking waiting-for-user issues for new feedback..."
@@ -86,16 +107,61 @@ check_waiting_issues_for_feedback() {
     done
 }
 
-# Get the next unprocessed issue
+# Get the next unprocessed issue (must have 'accepted' label)
 get_next_issue() {
-    # Query open issues and filter for bug OR enhancement labels
+    # Query open issues with accepted label and bug/enhancement labels
     # Exclude issues already being processed or resolved by bot
-    # Note: gh --label requires ALL labels, so we filter with jq instead
     gh issue list \
         --state open \
+        --label "$LABEL_ACCEPTED" \
         --json number,title,body,labels \
         --jq ".[] | select(.labels | map(.name) | any(. == \"bug\" or . == \"enhancement\")) | select(.labels | map(.name) | index(\"$LABEL_IN_PROGRESS\") | not) | select(.labels | map(.name) | index(\"$LABEL_BOT_RESOLVED\") | not) | select(.labels | map(.name) | index(\"$LABEL_BOT_FAILED\") | not) | select(.labels | map(.name) | index(\"$LABEL_WAITING_USER\") | not)" \
         2>/dev/null | head -1
+}
+
+# Build prompt for Phase 0: Conflict Check
+build_conflict_check_prompt() {
+    local issue_number="$1"
+    local issue_title="$2"
+    local issue_context="$3"
+
+    cat <<EOF
+You are checking if GitHub issue #${issue_number} conflicts with the project's architectural decisions.
+
+${issue_context}
+
+## Your Task: Conflict Check Only
+
+Check if implementing this issue would conflict with or contradict:
+1. The project's ADRs (Architecture Decision Records) in the adr/ directory
+2. The AGENTS.md file (project guidelines for AI agents)
+3. The README.md file (project overview and goals)
+
+Read these files and determine if the requested feature/fix:
+- Contradicts any architectural decisions
+- Goes against the project's stated goals or principles
+- Would require changing fundamental project decisions
+
+## Output Format
+
+Output your findings in this exact format:
+
+---CONFLICT_CHECK_RESULT---
+HAS_CONFLICTS: <YES if there are conflicts or concerns, NO if the issue aligns with project direction>
+CONFLICTS: <If HAS_CONFLICTS is YES: describe each conflict/concern, one per line. If NO: write "None">
+RECOMMENDATION: <If HAS_CONFLICTS is YES: what should be clarified or decided. If NO: "Proceed with implementation">
+---END_CONFLICT_CHECK---
+
+Be thorough but concise. Only flag genuine conflicts, not minor implementation details.
+EOF
+}
+
+# Check if conflict check was already done
+check_conflict_check_complete() {
+    local issue_number="$1"
+
+    gh issue view "$issue_number" --json comments \
+        --jq '.comments[] | select(.body | contains("Conflict Check Complete")) | .body' 2>/dev/null | head -1 | grep -q "Conflict Check Complete"
 }
 
 # Build prompt for Phase 1: Investigation
@@ -377,12 +443,12 @@ process_issue() {
     # ============================================
     local investigation_section=""
     local verifiable=""
-    local skip_to_phase=1
+    local skip_to_phase=0  # Start from Phase 0 (Conflict Check)
 
-    # Check for pending user feedback first - if exists, start fresh from Phase 1
+    # Check for pending user feedback first - if exists, start fresh from Phase 0
     if check_user_feedback_pending "$issue_number"; then
-        log "Phase detection: User feedback pending - restarting from Phase 1"
-        skip_to_phase=1
+        log "Phase detection: User feedback pending - restarting from Phase 0"
+        skip_to_phase=0
     # Check if implementation is already complete
     elif check_implementation_complete "$issue_number"; then
         investigation_section=$(get_existing_investigation "$issue_number" || echo "")
@@ -396,6 +462,75 @@ process_issue() {
         skip_to_phase=2
         verifiable=$(extract_field "$investigation_section" "VERIFIABLE")
         [[ -z "$verifiable" ]] && verifiable="NO"
+    # Check if conflict check is already complete
+    elif check_conflict_check_complete "$issue_number"; then
+        log "Phase detection: Conflict check already complete, skipping to Phase 1"
+        skip_to_phase=1
+    fi
+
+    # ============================================
+    # PHASE 0: Conflict Check
+    # ============================================
+    if [[ $skip_to_phase -le 0 ]]; then
+        log "Phase 0: Conflict Check..."
+
+        # Fetch issue with all comments
+        log "Fetching issue data with comments..."
+        local issue_context=$(fetch_issue_with_comments "$issue_number")
+
+        local conflict_prompt=$(build_conflict_check_prompt "$issue_number" "$issue_title" "$issue_context")
+        local conflict_output=$(run_claude "$conflict_prompt" "/tmp/claude-issue-${issue_number}-phase0.log")
+
+        local conflict_section=$(extract_section "$conflict_output" "---CONFLICT_CHECK_RESULT---" "---END_CONFLICT_CHECK---")
+
+        if [[ -z "$conflict_section" ]]; then
+            log "Phase 0 failed: Could not extract conflict check results"
+            gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
+            gh issue edit "$issue_number" --add-label "$LABEL_BOT_FAILED" 2>/dev/null || true
+            gh issue comment "$issue_number" --body "🤖 **Bot Conflict Check Failed**
+
+The issue bot could not complete the conflict check phase. Manual intervention may be required.
+
+See logs for details." 2>/dev/null || true
+            return 1
+        fi
+
+        local has_conflicts=$(extract_field "$conflict_section" "HAS_CONFLICTS")
+        local conflicts=$(extract_field "$conflict_section" "CONFLICTS")
+        local recommendation=$(extract_field "$conflict_section" "RECOMMENDATION")
+
+        if [[ "$has_conflicts" == "YES" ]]; then
+            log "Conflicts found - waiting for owner decision"
+            gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
+            gh issue edit "$issue_number" --add-label "$LABEL_WAITING_USER" 2>/dev/null || true
+            gh issue comment "$issue_number" --body "🤖 **Conflict Check Complete - Decision Needed**
+
+⚠️ **Potential conflicts with project architecture detected:**
+
+${conflicts}
+
+**Recommendation:** ${recommendation}
+
+---
+@${OWNER_USERNAME} Please review and either:
+- Approve proceeding (reply \"approved\" or \"proceed\")
+- Reject the issue
+- Provide guidance on how to resolve the conflicts
+
+The bot will continue once approved." 2>/dev/null || true
+            return 0
+        fi
+
+        # No conflicts - post result and continue
+        log "No conflicts found - proceeding..."
+        gh issue comment "$issue_number" --body "🤖 **Conflict Check Complete**
+
+✅ No conflicts with project ADRs, AGENTS.md, or README.md detected.
+
+---
+_Proceeding to investigation phase..._" 2>/dev/null || true
+    else
+        log "Phase 0: Skipped (already complete)"
     fi
 
     # ============================================
@@ -577,6 +712,7 @@ main() {
     # Ensure labels exist
     log "Ensuring bot labels exist..."
     if [[ "$DRY_RUN" != "1" ]]; then
+        gh label create "$LABEL_ACCEPTED" --description "Issue accepted for bot processing" --color "0052CC" 2>/dev/null || true
         gh label create "$LABEL_IN_PROGRESS" --description "Bot is working on this issue" --color "FFA500" 2>/dev/null || true
         gh label create "$LABEL_BOT_RESOLVED" --description "Bot has addressed this issue" --color "00FF00" 2>/dev/null || true
         gh label create "$LABEL_BOT_FAILED" --description "Bot failed to resolve this issue" --color "FF0000" 2>/dev/null || true
@@ -589,6 +725,9 @@ main() {
         # Pull latest changes first
         log "Pulling latest changes..."
         git pull --rebase origin main 2>/dev/null || true
+
+        # Auto-accept issues from project owner
+        auto_accept_owner_issues
 
         # Check if any waiting-for-user issues have new feedback
         check_waiting_issues_for_feedback
