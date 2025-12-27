@@ -2,7 +2,7 @@
 #
 # issue-bot.sh - Autonomous issue resolver using Claude Code
 #
-# Polls GitHub issues every minute and attempts to resolve them one at a time.
+# Polls GitHub issues every 15 seconds and attempts to resolve them one at a time.
 # Uses Claude Code in three phases:
 #   1. Investigation - Analyze issue and post insights
 #   2. Implementation - Fix the issue and commit
@@ -15,7 +15,7 @@
 #   - claude CLI (Claude Code)
 #
 # Environment variables:
-#   POLL_INTERVAL  - Seconds between polls (default: 60)
+#   POLL_INTERVAL  - Seconds between polls (default: 15)
 #   CLAUDE_TIMEOUT - Max seconds for Claude to run per phase (default: 300)
 #   DRY_RUN        - Set to 1 to print what would be done without running Claude
 #
@@ -24,7 +24,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-POLL_INTERVAL="${POLL_INTERVAL:-60}"
+POLL_INTERVAL="${POLL_INTERVAL:-15}"
 DRY_RUN="${DRY_RUN:-0}"
 
 # Labels
@@ -61,6 +61,29 @@ check_dependencies() {
         error "gh CLI not authenticated. Run 'gh auth login'"
         exit 1
     fi
+}
+
+# Check waiting-for-user issues for new user feedback and remove label if found
+check_waiting_issues_for_feedback() {
+    log "Checking waiting-for-user issues for new feedback..."
+
+    # Get all open issues with waiting-for-user label
+    local waiting_issues=$(gh issue list \
+        --state open \
+        --label "$LABEL_WAITING_USER" \
+        --json number \
+        --jq '.[].number' 2>/dev/null)
+
+    for issue_number in $waiting_issues; do
+        # Check if the last comment is NOT from the bot (doesn't contain 🤖)
+        local last_comment_is_bot=$(gh issue view "$issue_number" --json comments \
+            --jq '.comments | last | .body | contains("🤖")' 2>/dev/null)
+
+        if [[ "$last_comment_is_bot" == "false" ]]; then
+            log "Issue #${issue_number}: User feedback detected, removing waiting-for-user label"
+            gh issue edit "$issue_number" --remove-label "$LABEL_WAITING_USER" 2>/dev/null || true
+        fi
+    done
 }
 
 # Get the next unprocessed issue
@@ -350,27 +373,18 @@ process_issue() {
     local investigation_section=""
     local verifiable=""
     local skip_to_phase=1
-    local has_user_feedback=false
 
-    # Check for pending user feedback first
+    # Check for pending user feedback first - if exists, start fresh from Phase 1
     if check_user_feedback_pending "$issue_number"; then
-        log "Phase detection: User feedback pending - will re-run implementation"
-        has_user_feedback=true
-    fi
-
+        log "Phase detection: User feedback pending - restarting from Phase 1"
+        skip_to_phase=1
     # Check if implementation is already complete
-    if check_implementation_complete "$issue_number"; then
+    elif check_implementation_complete "$issue_number"; then
         investigation_section=$(get_existing_investigation "$issue_number" || echo "")
         verifiable=$(extract_field "$investigation_section" "VERIFIABLE")
         [[ -z "$verifiable" ]] && verifiable="NO"
-
-        if [[ "$has_user_feedback" == "true" ]]; then
-            log "Phase detection: Implementation complete but user feedback exists, re-running Phase 2"
-            skip_to_phase=2
-        else
-            log "Phase detection: Implementation already complete, skipping to Phase 3"
-            skip_to_phase=3
-        fi
+        log "Phase detection: Implementation already complete, skipping to Phase 3"
+        skip_to_phase=3
     # Check if investigation is already complete
     elif investigation_section=$(get_existing_investigation "$issue_number"); then
         log "Phase detection: Investigation already complete, skipping to Phase 2"
@@ -541,6 +555,9 @@ main() {
         # Pull latest changes first
         log "Pulling latest changes..."
         git pull --rebase origin main 2>/dev/null || true
+
+        # Check if any waiting-for-user issues have new feedback
+        check_waiting_issues_for_feedback
 
         # Get next issue to process
         local issue_json=$(get_next_issue)
