@@ -133,6 +133,58 @@ func DefaultASCIIAtlas() *SpriteAtlas {
 	playerPunchLeft.Anchor.Y = 2
 	atlas.Set("player_punch_left", playerPunchLeft)
 
+	// Player charging right (arm pulled back)
+	playerChargeRight := SpriteData{
+		Lines: []string{
+			" O*",
+			"/|/",
+			"/ \\",
+		},
+		FG: ColorYellow, // Yellow to indicate charging
+		BG: ColorBlack,
+	}
+	playerChargeRight.Anchor.X = 1
+	playerChargeRight.Anchor.Y = 2
+	atlas.Set("player_charge_right", playerChargeRight)
+
+	// Player charging left (arm pulled back)
+	playerChargeLeft := SpriteData{
+		Lines: []string{
+			"*O ",
+			"\\|\\",
+			"/ \\",
+		},
+		FG: ColorYellow,
+		BG: ColorBlack,
+	}
+	playerChargeLeft.Anchor.X = 1
+	playerChargeLeft.Anchor.Y = 2
+	atlas.Set("player_charge_left", playerChargeLeft)
+
+	// Flying fist right
+	fistRight := SpriteData{
+		Lines: []string{
+			"*>",
+		},
+		FG: ColorYellow,
+		BG: ColorBlack,
+	}
+	fistRight.Anchor.X = 0
+	fistRight.Anchor.Y = 0
+	atlas.Set("fist_right", fistRight)
+
+	// Flying fist left
+	fistLeft := SpriteData{
+		Lines: []string{
+			"<*",
+		},
+		FG: ColorYellow,
+		BG: ColorBlack,
+	}
+	fistLeft.Anchor.X = 1
+	fistLeft.Anchor.Y = 0
+	atlas.Set("fist_left", fistLeft)
+
 	// Enemy sprites
 	atlas.Set("slime", SpriteData{Char: 's', FG: ColorGreen, BG: ColorBlack})
 	atlas.Set("bat", SpriteData{Char: 'b', FG: ColorMagenta, BG: ColorBlack})

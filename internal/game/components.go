@@ -53,10 +53,30 @@ type Grounded struct {
 
 // AttackState tracks attack animation state
 type AttackState struct {
-	Attacking     bool   // Currently attacking
-	TicksLeft     int    // Animation ticks remaining
-	FacingRight   bool   // Direction of attack
+	Attacking   bool // Currently in attack animation
+	TicksLeft   int  // Animation ticks remaining
+	FacingRight bool // Direction of attack
+
+	// Charging state
+	IsCharging  bool   // Currently holding attack key
+	ChargeStart uint64 // Tick when charge started
 }
 
 // AttackDuration is how many ticks the punch animation lasts
 const AttackDuration = 8
+
+// Charge constants
+const (
+	MaxChargeTicks  = 180  // 3 seconds at 60 TPS = maximum charge
+	MinFistDistance = 1.0  // Minimum distance (no charge)
+	MaxFistDistance = 20.0 // Maximum distance (full charge) - 20x character width
+	FistSpeed       = 0.8  // Speed of the flying fist per tick
+)
+
+// Fist component marks a flying fist projectile
+type Fist struct {
+	StartX       float64 // Starting X position
+	MaxDistance  float64 // Maximum distance to travel
+	FacingRight  bool    // Direction of travel
+	OwnerID      int     // Player who threw the fist
+}

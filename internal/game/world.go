@@ -17,13 +17,15 @@ type World struct {
 	playerMapper *ecs.Map9[Position, Velocity, Collider, Sprite, Player, Health, Gravity, Grounded, Controller]
 	enemyMapper  *ecs.Map7[Position, Velocity, Collider, Sprite, Health, Gravity, Grounded]
 	attackMapper *ecs.Map1[AttackState] // Separate mapper for attack state
+	fistMapper   *ecs.Map4[Position, Velocity, Sprite, Fist]
 
 	// Filters for queries
 	playerFilter  *ecs.Filter2[Position, Player]
 	physicsFilter *ecs.Filter4[Position, Velocity, Gravity, Grounded]
 	renderFilter  *ecs.Filter2[Position, Sprite]
 	controlFilter *ecs.Filter3[Velocity, Grounded, Controller]
-	attackFilter  *ecs.Filter4[Sprite, Controller, AttackState, Velocity]
+	attackFilter  *ecs.Filter6[Position, Sprite, Controller, AttackState, Velocity, Player]
+	fistFilter    *ecs.Filter3[Position, Velocity, Fist]
 }
 
 // Controller tracks which intents are active for an entity
@@ -42,13 +44,15 @@ func NewWorld() *World {
 	w.playerMapper = ecs.NewMap9[Position, Velocity, Collider, Sprite, Player, Health, Gravity, Grounded, Controller](w.ECS)
 	w.enemyMapper = ecs.NewMap7[Position, Velocity, Collider, Sprite, Health, Gravity, Grounded](w.ECS)
 	w.attackMapper = ecs.NewMap1[AttackState](w.ECS)
+	w.fistMapper = ecs.NewMap4[Position, Velocity, Sprite, Fist](w.ECS)
 
 	// Initialize filters
 	w.playerFilter = ecs.NewFilter2[Position, Player](w.ECS)
 	w.physicsFilter = ecs.NewFilter4[Position, Velocity, Gravity, Grounded](w.ECS)
 	w.renderFilter = ecs.NewFilter2[Position, Sprite](w.ECS)
 	w.controlFilter = ecs.NewFilter3[Velocity, Grounded, Controller](w.ECS)
-	w.attackFilter = ecs.NewFilter4[Sprite, Controller, AttackState, Velocity](w.ECS)
+	w.attackFilter = ecs.NewFilter6[Position, Sprite, Controller, AttackState, Velocity, Player](w.ECS)
+	w.fistFilter = ecs.NewFilter3[Position, Velocity, Fist](w.ECS)
 
 	return w
 }
@@ -63,6 +67,7 @@ func (w *World) Update() {
 	w.Tick++
 	w.runInputSystem()
 	w.runAttackSystem()
+	w.runFistSystem()
 	w.runPhysicsSystem()
 	w.runCollisionSystem()
 }
@@ -94,44 +99,146 @@ func (w *World) runInputSystem() {
 	}
 }
 
-// runAttackSystem handles attack animations and sprite changes
+// runAttackSystem handles attack charging and fist launching
 func (w *World) runAttackSystem() {
+	// Collect fists to spawn (can't spawn during query iteration)
+	type fistSpawn struct {
+		x, y        float64
+		facingRight bool
+		distance    float64
+		ownerID     int
+	}
+	var fistsToSpawn []fistSpawn
+
 	query := w.attackFilter.Query()
 	for query.Next() {
-		sprite, ctrl, attack, vel := query.Get()
+		pos, sprite, ctrl, attack, vel, player := query.Get()
 
-		// Check for attack input
-		if ctrl.Intents&protocol.IntentAttack != 0 && !attack.Attacking {
-			attack.Attacking = true
-			attack.TicksLeft = AttackDuration
-			// Determine facing direction from velocity or keep previous
-			if vel.X > 0 {
-				attack.FacingRight = true
-			} else if vel.X < 0 {
-				attack.FacingRight = false
-			}
+		// Update facing direction from velocity
+		if vel.X > 0 {
+			attack.FacingRight = true
+		} else if vel.X < 0 {
+			attack.FacingRight = false
 		}
 
-		// Update attack animation
-		if attack.Attacking {
+		attackPressed := ctrl.Intents&protocol.IntentAttack != 0
+
+		// Start charging when attack key is pressed
+		if attackPressed && !attack.IsCharging && !attack.Attacking {
+			attack.IsCharging = true
+			attack.ChargeStart = w.Tick
+		}
+
+		// Release attack - launch the fist
+		if !attackPressed && attack.IsCharging {
+			attack.IsCharging = false
+
+			// Calculate charge duration and distance
+			chargeTicks := w.Tick - attack.ChargeStart
+			if chargeTicks > MaxChargeTicks {
+				chargeTicks = MaxChargeTicks
+			}
+
+			// Linear interpolation from min to max distance based on charge
+			chargeRatio := float64(chargeTicks) / float64(MaxChargeTicks)
+			distance := MinFistDistance + chargeRatio*(MaxFistDistance-MinFistDistance)
+
+			// Spawn fist projectile
+			fistsToSpawn = append(fistsToSpawn, fistSpawn{
+				x:           pos.X,
+				y:           pos.Y,
+				facingRight: attack.FacingRight,
+				distance:    distance,
+				ownerID:     player.ID,
+			})
+
+			// Start punch animation
+			attack.Attacking = true
+			attack.TicksLeft = AttackDuration
+		}
+
+		// Update sprite based on state
+		if attack.IsCharging {
+			// Charging pose
+			if attack.FacingRight {
+				sprite.ID = "player_charge_right"
+			} else {
+				sprite.ID = "player_charge_left"
+			}
+		} else if attack.Attacking {
 			if attack.TicksLeft > 0 {
 				attack.TicksLeft--
-				// Set punch sprite based on direction
+				// Punch animation (arm extended, no fist attached)
 				if attack.FacingRight {
 					sprite.ID = "player_punch_right"
 				} else {
 					sprite.ID = "player_punch_left"
 				}
 			} else {
-				// Attack finished
 				attack.Attacking = false
 				sprite.ID = "player"
 			}
 		} else {
-			// Not attacking - use normal sprite
 			sprite.ID = "player"
 		}
 	}
+
+	// Spawn fists after query completes
+	for _, f := range fistsToSpawn {
+		w.SpawnFist(f.x, f.y, f.facingRight, f.distance, f.ownerID)
+	}
+}
+
+// runFistSystem updates flying fist projectiles
+func (w *World) runFistSystem() {
+	// Collect entities to remove (can't remove during query)
+	var toRemove []ecs.Entity
+
+	query := w.fistFilter.Query()
+	for query.Next() {
+		pos, vel, fist := query.Get()
+		entity := query.Entity()
+
+		// Move the fist
+		pos.X += vel.X
+
+		// Check if fist has traveled max distance
+		traveled := pos.X - fist.StartX
+		if !fist.FacingRight {
+			traveled = -traveled
+		}
+
+		if traveled >= fist.MaxDistance {
+			toRemove = append(toRemove, entity)
+		}
+	}
+
+	// Remove fists that have traveled their distance
+	for _, e := range toRemove {
+		w.ECS.RemoveEntity(e)
+	}
+}
+
+// SpawnFist creates a flying fist projectile
+func (w *World) SpawnFist(x, y float64, facingRight bool, maxDistance float64, ownerID int) ecs.Entity {
+	velX := FistSpeed
+	spriteID := "fist_right"
+	if !facingRight {
+		velX = -FistSpeed
+		spriteID = "fist_left"
+	}
+
+	return w.fistMapper.NewEntity(
+		&Position{X: x, Y: y},
+		&Velocity{X: velX, Y: 0},
+		&Sprite{ID: spriteID, Color: 0xFFFF00},
+		&Fist{
+			StartX:      x,
+			MaxDistance: maxDistance,
+			FacingRight: facingRight,
+			OwnerID:     ownerID,
+		},
+	)
 }
 
 // runPhysicsSystem applies gravity and velocity
