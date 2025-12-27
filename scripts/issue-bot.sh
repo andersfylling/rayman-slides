@@ -139,6 +139,16 @@ build_implementation_prompt() {
     local issue_title="$2"
     local issue_context="$3"
     local investigation="$4"
+    local verifiable="$5"
+
+    # Determine issue reference keyword based on verifiability
+    # "Fixes/Closes" auto-closes on GitHub, "Refs" does not
+    local issue_keyword="Refs"
+    local keyword_note="Use 'Refs' (NOT 'Fixes' or 'Closes') because this issue requires manual user verification."
+    if [[ "$verifiable" == "YES" ]]; then
+        issue_keyword="Fixes"
+        keyword_note="Use 'Fixes' because this issue can be verified programmatically."
+    fi
 
     cat <<EOF
 You are implementing a fix for GitHub issue #${issue_number}: ${issue_title}
@@ -154,7 +164,9 @@ ${investigation}
 1. Make the necessary code changes based on the investigation
 2. Test your changes (run \`make build\` at minimum, run tests if available)
 3. Commit with a message that:
-   - References the issue: "Fixes #${issue_number}" (for bugs) or "Closes #${issue_number}" (for features)
+   - References the issue with "${issue_keyword} #${issue_number}"
+   - ${keyword_note}
+   - IMPORTANT: Do NOT use "Fixes", "Closes", or "Resolves" unless VERIFIABLE was YES - these keywords auto-close the issue on GitHub!
    - Explains WHY the change was needed, not what changed
    - Keep it concise (1-2 sentences)
 4. Push the changes to main
@@ -164,7 +176,7 @@ ${investigation}
 \`\`\`
 <Short WHY explanation>
 
-Fixes #${issue_number}
+${issue_keyword} #${issue_number}
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
@@ -188,6 +200,7 @@ ERROR: <error description if failed, or N/A>
 - If you cannot fix the issue, set STATUS to FAILED and explain why
 - Do not make unrelated changes
 - Keep changes minimal and focused
+- CRITICAL: Only use "Fixes/Closes/Resolves" if VERIFIABLE is YES, otherwise use "Refs"
 EOF
 }
 
@@ -303,7 +316,7 @@ _Proceeding to implementation phase..._" 2>/dev/null || true
     log "Fetching fresh issue data with comments..."
     local issue_context=$(fetch_issue_with_comments "$issue_number")
 
-    local implementation_prompt=$(build_implementation_prompt "$issue_number" "$issue_title" "$issue_context" "$investigation_section")
+    local implementation_prompt=$(build_implementation_prompt "$issue_number" "$issue_title" "$issue_context" "$investigation_section" "$verifiable")
     local implementation_output=$(run_claude "$implementation_prompt" "/tmp/claude-issue-${issue_number}-phase2.log")
 
     local implementation_section=$(extract_section "$implementation_output" "---IMPLEMENTATION_RESULT---" "---END_IMPLEMENTATION---")
