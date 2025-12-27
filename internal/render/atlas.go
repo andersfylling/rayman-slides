@@ -133,22 +133,74 @@ func DefaultASCIIAtlas() *SpriteAtlas {
 	playerPunchLeft.Anchor.Y = 2
 	atlas.Set("player_punch_left", playerPunchLeft)
 
-	// Player charging right (arm pulled back)
-	playerChargeRight := SpriteData{
+	// Player charging right - 3 animation frames for pulsing effect
+	playerChargeRight1 := SpriteData{
+		Lines: []string{
+			" O.",
+			"/|/",
+			"/ \\",
+		},
+		FG: ColorYellow,
+		BG: ColorBlack,
+	}
+	playerChargeRight1.Anchor.X = 1
+	playerChargeRight1.Anchor.Y = 2
+	atlas.Set("player_charge_right_1", playerChargeRight1)
+
+	playerChargeRight2 := SpriteData{
+		Lines: []string{
+			" Oo",
+			"/|/",
+			"/ \\",
+		},
+		FG: ColorYellow,
+		BG: ColorBlack,
+	}
+	playerChargeRight2.Anchor.X = 1
+	playerChargeRight2.Anchor.Y = 2
+	atlas.Set("player_charge_right_2", playerChargeRight2)
+
+	playerChargeRight3 := SpriteData{
 		Lines: []string{
 			" O*",
 			"/|/",
 			"/ \\",
 		},
-		FG: ColorYellow, // Yellow to indicate charging
+		FG: ColorYellow,
 		BG: ColorBlack,
 	}
-	playerChargeRight.Anchor.X = 1
-	playerChargeRight.Anchor.Y = 2
-	atlas.Set("player_charge_right", playerChargeRight)
+	playerChargeRight3.Anchor.X = 1
+	playerChargeRight3.Anchor.Y = 2
+	atlas.Set("player_charge_right_3", playerChargeRight3)
 
-	// Player charging left (arm pulled back)
-	playerChargeLeft := SpriteData{
+	// Player charging left - 3 animation frames for pulsing effect
+	playerChargeLeft1 := SpriteData{
+		Lines: []string{
+			".O ",
+			"\\|\\",
+			"/ \\",
+		},
+		FG: ColorYellow,
+		BG: ColorBlack,
+	}
+	playerChargeLeft1.Anchor.X = 1
+	playerChargeLeft1.Anchor.Y = 2
+	atlas.Set("player_charge_left_1", playerChargeLeft1)
+
+	playerChargeLeft2 := SpriteData{
+		Lines: []string{
+			"oO ",
+			"\\|\\",
+			"/ \\",
+		},
+		FG: ColorYellow,
+		BG: ColorBlack,
+	}
+	playerChargeLeft2.Anchor.X = 1
+	playerChargeLeft2.Anchor.Y = 2
+	atlas.Set("player_charge_left_2", playerChargeLeft2)
+
+	playerChargeLeft3 := SpriteData{
 		Lines: []string{
 			"*O ",
 			"\\|\\",
@@ -157,9 +209,9 @@ func DefaultASCIIAtlas() *SpriteAtlas {
 		FG: ColorYellow,
 		BG: ColorBlack,
 	}
-	playerChargeLeft.Anchor.X = 1
-	playerChargeLeft.Anchor.Y = 2
-	atlas.Set("player_charge_left", playerChargeLeft)
+	playerChargeLeft3.Anchor.X = 1
+	playerChargeLeft3.Anchor.Y = 2
+	atlas.Set("player_charge_left_3", playerChargeLeft3)
 
 	// Flying fist right
 	fistRight := SpriteData{

@@ -159,11 +159,29 @@ func (w *World) runAttackSystem() {
 
 		// Update sprite based on state
 		if attack.IsCharging {
-			// Charging pose
+			// Charging pose with pulsing animation
+			// Cycle between charge levels every 10 ticks for visual feedback
+			chargeTicks := w.Tick - attack.ChargeStart
+			pulsePhase := (chargeTicks / 10) % 3 // 0, 1, or 2
+
 			if attack.FacingRight {
-				sprite.ID = "player_charge_right"
+				switch pulsePhase {
+				case 0:
+					sprite.ID = "player_charge_right_1"
+				case 1:
+					sprite.ID = "player_charge_right_2"
+				default:
+					sprite.ID = "player_charge_right_3"
+				}
 			} else {
-				sprite.ID = "player_charge_left"
+				switch pulsePhase {
+				case 0:
+					sprite.ID = "player_charge_left_1"
+				case 1:
+					sprite.ID = "player_charge_left_2"
+				default:
+					sprite.ID = "player_charge_left_3"
+				}
 			}
 		} else if attack.Attacking {
 			if attack.TicksLeft > 0 {
@@ -220,6 +238,7 @@ func (w *World) runFistSystem() {
 }
 
 // SpawnFist creates a flying fist projectile
+// The fist spawns at chest height (0.5 units above the character's foot position)
 func (w *World) SpawnFist(x, y float64, facingRight bool, maxDistance float64, ownerID int) ecs.Entity {
 	velX := FistSpeed
 	spriteID := "fist_right"
@@ -228,8 +247,11 @@ func (w *World) SpawnFist(x, y float64, facingRight bool, maxDistance float64, o
 		spriteID = "fist_left"
 	}
 
+	// Offset Y to chest level (character position is at feet, chest is about 0.5 units up)
+	chestY := y - 0.5
+
 	return w.fistMapper.NewEntity(
-		&Position{X: x, Y: y},
+		&Position{X: x, Y: chestY},
 		&Velocity{X: velX, Y: 0},
 		&Sprite{ID: spriteID, Color: 0xFFFF00},
 		&Fist{
