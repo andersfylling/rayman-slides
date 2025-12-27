@@ -61,13 +61,13 @@ check_dependencies() {
 
 # Get the next unprocessed issue
 get_next_issue() {
-    # Query open issues with bug or enhancement labels
+    # Query open issues and filter for bug OR enhancement labels
     # Exclude issues already being processed or resolved by bot
+    # Note: gh --label requires ALL labels, so we filter with jq instead
     gh issue list \
         --state open \
-        --label "bug,enhancement" \
         --json number,title,body,labels \
-        --jq ".[] | select(.labels | map(.name) | index(\"$LABEL_IN_PROGRESS\") | not) | select(.labels | map(.name) | index(\"$LABEL_BOT_RESOLVED\") | not) | select(.labels | map(.name) | index(\"$LABEL_BOT_FAILED\") | not)" \
+        --jq ".[] | select(.labels | map(.name) | any(. == \"bug\" or . == \"enhancement\")) | select(.labels | map(.name) | index(\"$LABEL_IN_PROGRESS\") | not) | select(.labels | map(.name) | index(\"$LABEL_BOT_RESOLVED\") | not) | select(.labels | map(.name) | index(\"$LABEL_BOT_FAILED\") | not)" \
         2>/dev/null | head -1
 }
 
