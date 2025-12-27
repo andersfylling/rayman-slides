@@ -116,7 +116,8 @@ Analyze this issue thoroughly. Do NOT make any code changes or commits yet.
 1. Read the issue carefully and understand what is being reported
 2. Explore the codebase to find relevant files and code sections
 3. Identify the root cause or the components that need to be modified
-4. Determine if this issue can be verified programmatically (tests, build, etc.) or requires manual user verification
+4. Determine if there are multiple valid approaches to fix this
+5. Determine if this issue can be verified programmatically (tests, build, etc.) or requires manual user verification
 
 ## Output Format
 
@@ -125,9 +126,15 @@ When done investigating, output your findings in this exact format:
 ---INVESTIGATION_RESULT---
 FILES: <comma-separated list of relevant file paths>
 ROOT_CAUSE: <1-2 sentence description of the root cause or what needs to change>
-APPROACH: <1-2 sentence description of how to fix it>
+NEEDS_DECISION: <YES if there are multiple valid approaches and user should choose, NO if there's one clear approach>
+APPROACH: <If NEEDS_DECISION is NO: 1-2 sentence description of how to fix it>
+APPROACHES: <If NEEDS_DECISION is YES: numbered list of approaches, one per line, format "1. Description", "2. Description", etc.>
 VERIFIABLE: <YES if can be tested programmatically, NO if requires manual user testing>
 ---END_INVESTIGATION---
+
+IMPORTANT:
+- If the user has already indicated a preference in the comments, set NEEDS_DECISION to NO and use their preferred approach.
+- Only set NEEDS_DECISION to YES if there are genuinely different approaches with meaningful trade-offs AND the user hasn't expressed a preference.
 
 Be concise but specific. This information will be posted as a comment on the issue.
 EOF
@@ -420,10 +427,35 @@ See logs for details." 2>/dev/null || true
 
         local files=$(extract_field "$investigation_section" "FILES")
         local root_cause=$(extract_field "$investigation_section" "ROOT_CAUSE")
+        local needs_decision=$(extract_field "$investigation_section" "NEEDS_DECISION")
         local approach=$(extract_field "$investigation_section" "APPROACH")
+        local approaches=$(extract_field "$investigation_section" "APPROACHES")
         verifiable=$(extract_field "$investigation_section" "VERIFIABLE")
 
-        # Post investigation comment
+        # Check if user needs to make a decision
+        if [[ "$needs_decision" == "YES" ]]; then
+            log "Multiple approaches found - waiting for user decision"
+            gh issue edit "$issue_number" --remove-label "$LABEL_IN_PROGRESS" 2>/dev/null || true
+            gh issue edit "$issue_number" --add-label "$LABEL_WAITING_USER" 2>/dev/null || true
+            gh issue comment "$issue_number" --body "🤖 **Bot Investigation Complete - Decision Needed**
+
+**Relevant Files:** \`${files}\`
+
+**Root Cause:** ${root_cause}
+
+**Possible Approaches:**
+${approaches}
+
+**Programmatically Verifiable:** ${verifiable}
+
+---
+⚠️ **Please reply with your preferred approach number (e.g., \"Use approach 1\" or \"Go with option 2\").**
+
+The bot will continue implementation once you've decided." 2>/dev/null || true
+            return 0
+        fi
+
+        # Post investigation comment and continue to implementation
         log "Posting investigation findings..."
         gh issue comment "$issue_number" --body "🤖 **Bot Investigation Complete**
 
