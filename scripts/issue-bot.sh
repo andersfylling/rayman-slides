@@ -111,21 +111,41 @@ Be concise but specific. This information will be posted as a comment on the iss
 EOF
 }
 
+# Fetch issue with all comments
+fetch_issue_with_comments() {
+    local issue_number="$1"
+
+    # Get issue body
+    local body=$(gh issue view "$issue_number" --json body --jq '.body // "No description provided."' 2>/dev/null)
+
+    # Get all comments
+    local comments=$(gh issue view "$issue_number" --json comments --jq '.comments[] | "**\(.author.login)** (\(.createdAt)):\n\(.body)\n"' 2>/dev/null)
+
+    echo "## Issue Description"
+    echo ""
+    echo "$body"
+    echo ""
+
+    if [[ -n "$comments" ]]; then
+        echo "## Comments"
+        echo ""
+        echo "$comments"
+    fi
+}
+
 # Build prompt for Phase 2: Implementation
 build_implementation_prompt() {
     local issue_number="$1"
     local issue_title="$2"
-    local issue_body="$3"
+    local issue_context="$3"
     local investigation="$4"
 
     cat <<EOF
 You are implementing a fix for GitHub issue #${issue_number}: ${issue_title}
 
-## Issue Description
+${issue_context}
 
-${issue_body}
-
-## Previous Investigation
+## Investigation Summary
 
 ${investigation}
 
@@ -277,7 +297,11 @@ _Proceeding to implementation phase..._" 2>/dev/null || true
     # ============================================
     log "Phase 2: Implementation..."
 
-    local implementation_prompt=$(build_implementation_prompt "$issue_number" "$issue_title" "$issue_body" "$investigation_section")
+    # Re-fetch issue with all comments (including our investigation comment)
+    log "Fetching fresh issue data with comments..."
+    local issue_context=$(fetch_issue_with_comments "$issue_number")
+
+    local implementation_prompt=$(build_implementation_prompt "$issue_number" "$issue_title" "$issue_context" "$investigation_section")
     local implementation_output=$(run_claude "$implementation_prompt" "/tmp/claude-issue-${issue_number}-phase2.log")
 
     local implementation_section=$(extract_section "$implementation_output" "---IMPLEMENTATION_RESULT---" "---END_IMPLEMENTATION---")
