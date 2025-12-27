@@ -15,8 +15,9 @@
 #   - claude CLI (Claude Code)
 #
 # Environment variables:
-#   POLL_INTERVAL - Seconds between polls (default: 60)
-#   DRY_RUN       - Set to 1 to print what would be done without running Claude
+#   POLL_INTERVAL  - Seconds between polls (default: 60)
+#   CLAUDE_TIMEOUT - Max seconds for Claude to run per phase (default: 300)
+#   DRY_RUN        - Set to 1 to print what would be done without running Claude
 #
 
 set -euo pipefail
@@ -208,18 +209,22 @@ EOF
 run_claude() {
     local prompt="$1"
     local log_file="$2"
+    local timeout_seconds="${CLAUDE_TIMEOUT:-300}"  # Default 5 minutes
 
     local prompt_file=$(mktemp)
     echo "$prompt" > "$prompt_file"
 
     local output=""
-    if output=$(claude -p "$(cat "$prompt_file")" --allowedTools "Bash,Read,Write,Edit,Glob,Grep" 2>&1 | tee "$log_file"); then
+    if output=$(timeout "${timeout_seconds}s" claude -p "$(cat "$prompt_file")" --allowedTools "Bash,Read,Write,Edit,Glob,Grep" 2>&1 | tee "$log_file"); then
         rm -f "$prompt_file"
         echo "$output"
         return 0
     else
         local exit_code=$?
         rm -f "$prompt_file"
+        if [[ $exit_code -eq 124 ]]; then
+            log "Claude timed out after ${timeout_seconds}s"
+        fi
         echo "$output"
         return $exit_code
     fi
