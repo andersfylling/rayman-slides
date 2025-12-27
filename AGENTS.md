@@ -158,3 +158,20 @@ for query.Next() {
 2. Add a mapper if needed for entity creation
 3. Add a filter if needed for querying
 4. Update systems in `internal/game/world.go`
+
+### Important: Long-Running Commands
+
+When executing interactive or long-running commands (like `make run` which starts the game), always specify a timeout. The game runs until manually quit, so without a timeout the command will hang forever.
+
+```bash
+# Wrong - hangs forever
+make run
+
+# Right - use timeout for testing
+timeout 5 ./bin/rayman
+
+# Or run in background and kill
+./bin/rayman &
+sleep 2
+kill %1
+```
