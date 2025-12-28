@@ -11,6 +11,7 @@ bin/
 # Debug output
 sprites.debug.gif
 sprites.animated.gif
+sprites.debug.png
 *.exe~
 *.dll
 *.so

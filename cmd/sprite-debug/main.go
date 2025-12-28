@@ -9,7 +9,7 @@ import (
 	"image/draw"
 	"image/gif"
 	_ "image/jpeg"
-	_ "image/png"
+	"image/png"
 	"os"
 	"sort"
 )
@@ -90,6 +90,11 @@ func run() error {
 
 	// Generate animated preview GIF
 	if err := generateAnimatedPreview(); err != nil {
+		return err
+	}
+
+	// Generate atlas overlay PNG
+	if err := generateAtlasOverlay(); err != nil {
 		return err
 	}
 
@@ -273,6 +278,103 @@ func generateAnimatedPreview() error {
 	fmt.Printf("Generated: sprites.animated.gif (%dx%d) - animated preview\n", width, height)
 	fmt.Println("Red dots show anchor points")
 	return nil
+}
+
+// generateAtlasOverlay creates a PNG with sprite borders drawn on the atlas
+func generateAtlasOverlay() error {
+	bounds := atlasImg.Bounds()
+
+	// Create RGBA copy of the atlas
+	overlay := image.NewRGBA(bounds)
+	draw.Draw(overlay, bounds, atlasImg, bounds.Min, draw.Src)
+
+	// Define colors for different sprite types
+	colorPlayer := color.RGBA{0, 255, 0, 255}   // Green
+	colorEnemy := color.RGBA{255, 0, 0, 255}    // Red
+	colorTile := color.RGBA{0, 150, 255, 255}   // Blue
+	colorItem := color.RGBA{255, 255, 0, 255}   // Yellow
+	colorEffect := color.RGBA{255, 0, 255, 255} // Magenta
+	colorAnchor := color.RGBA{255, 255, 255, 255} // White
+
+	// Draw borders and anchors for each sprite
+	for name, region := range data.Sprites {
+		// Choose color based on sprite type
+		var borderColor color.RGBA
+		switch {
+		case len(name) >= 6 && name[:6] == "player":
+			borderColor = colorPlayer
+		case len(name) >= 4 && name[:4] == "fist":
+			borderColor = colorPlayer
+		case len(name) >= 5 && name[:5] == "slime":
+			borderColor = colorEnemy
+		case len(name) >= 3 && name[:3] == "bat":
+			borderColor = colorEnemy
+		case len(name) >= 4 && name[:4] == "tile":
+			borderColor = colorTile
+		case len(name) >= 4 && name[:4] == "ting":
+			borderColor = colorItem
+		case name == "health" || name == "cage":
+			borderColor = colorItem
+		case name == "dust_1" || name == "dust_2" || name == "impact" || name == "sparkle":
+			borderColor = colorEffect
+		default:
+			borderColor = color.RGBA{200, 200, 200, 255} // Gray for unknown
+		}
+
+		// Draw border rectangle (2px thick for visibility)
+		drawBorderRGBA(overlay, region.X, region.Y, region.W, region.H, borderColor, 2)
+
+		// Draw anchor point as a cross
+		anchorX := region.X + region.AnchorX
+		anchorY := region.Y + region.AnchorY
+		drawCrossRGBA(overlay, anchorX, anchorY, colorAnchor, 5)
+	}
+
+	// Save as PNG
+	outFile, err := os.Create("sprites.debug.png")
+	if err != nil {
+		return fmt.Errorf("creating overlay output file: %w", err)
+	}
+	defer outFile.Close()
+
+	if err := png.Encode(outFile, overlay); err != nil {
+		return fmt.Errorf("encoding overlay png: %w", err)
+	}
+
+	fmt.Printf("Generated: sprites.debug.png (%dx%d) - atlas with region borders\n", bounds.Dx(), bounds.Dy())
+	fmt.Println("  Green=player, Red=enemies, Blue=tiles, Yellow=items, Magenta=effects")
+	fmt.Println("  White crosses mark anchor points")
+	return nil
+}
+
+// drawBorderRGBA draws a rectangle border on an RGBA image
+func drawBorderRGBA(img *image.RGBA, x, y, w, h int, c color.RGBA, thickness int) {
+	// Top and bottom edges
+	for dx := 0; dx < w; dx++ {
+		for t := 0; t < thickness; t++ {
+			img.Set(x+dx, y+t, c)
+			img.Set(x+dx, y+h-1-t, c)
+		}
+	}
+	// Left and right edges
+	for dy := 0; dy < h; dy++ {
+		for t := 0; t < thickness; t++ {
+			img.Set(x+t, y+dy, c)
+			img.Set(x+w-1-t, y+dy, c)
+		}
+	}
+}
+
+// drawCrossRGBA draws a cross marker on an RGBA image
+func drawCrossRGBA(img *image.RGBA, x, y int, c color.RGBA, size int) {
+	// Horizontal line
+	for dx := -size; dx <= size; dx++ {
+		img.Set(x+dx, y, c)
+	}
+	// Vertical line
+	for dy := -size; dy <= size; dy++ {
+		img.Set(x, y+dy, c)
+	}
 }
 
 func drawSpriteAt(frame *image.Paletted, spriteName string, x, y int) {
