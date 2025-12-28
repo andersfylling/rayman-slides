@@ -1,0 +1,75 @@
+{
+  "image": "atlas.jpg",
+  "sprites": {
+    "player_walk_1": { "x": 0, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_walk_2": { "x": 48, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_walk_3": { "x": 96, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_walk_4": { "x": 144, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_walk_5": { "x": 192, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_walk_6": { "x": 240, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_walk_7": { "x": 288, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_walk_8": { "x": 336, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+
+    "player_idle": { "x": 0, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player": { "x": 0, "y": 0, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+
+    "player_charge_right_1": { "x": 0, "y": 64, "w": 64, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_charge_right_2": { "x": 64, "y": 64, "w": 64, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_charge_right_3": { "x": 64, "y": 64, "w": 64, "h": 64, "anchorX": 24, "anchorY": 64 },
+    "player_punch_right": { "x": 128, "y": 64, "w": 80, "h": 64, "anchorX": 24, "anchorY": 64 },
+
+    "player_charge_left_1": { "x": 0, "y": 64, "w": 64, "h": 64, "anchorX": 40, "anchorY": 64, "flipX": true },
+    "player_charge_left_2": { "x": 64, "y": 64, "w": 64, "h": 64, "anchorX": 40, "anchorY": 64, "flipX": true },
+    "player_charge_left_3": { "x": 64, "y": 64, "w": 64, "h": 64, "anchorX": 40, "anchorY": 64, "flipX": true },
+    "player_punch_left": { "x": 128, "y": 64, "w": 80, "h": 64, "anchorX": 56, "anchorY": 64, "flipX": true },
+
+    "slime": { "x": 400, "y": 0, "w": 48, "h": 48, "anchorX": 24, "anchorY": 48 },
+    "slime_idle": { "x": 400, "y": 0, "w": 48, "h": 48, "anchorX": 24, "anchorY": 48 },
+    "slime_1": { "x": 400, "y": 0, "w": 48, "h": 48, "anchorX": 24, "anchorY": 48 },
+    "slime_2": { "x": 448, "y": 0, "w": 48, "h": 48, "anchorX": 24, "anchorY": 48 },
+    "slime_3": { "x": 496, "y": 0, "w": 48, "h": 48, "anchorX": 24, "anchorY": 48 },
+    "slime_4": { "x": 544, "y": 0, "w": 48, "h": 48, "anchorX": 24, "anchorY": 48 },
+
+    "fist_right": { "x": 0, "y": 128, "w": 64, "h": 32, "anchorX": 32, "anchorY": 16 },
+    "fist_right_1": { "x": 0, "y": 128, "w": 64, "h": 32, "anchorX": 32, "anchorY": 16 },
+    "fist_right_2": { "x": 64, "y": 128, "w": 64, "h": 32, "anchorX": 32, "anchorY": 16 },
+    "fist_right_3": { "x": 128, "y": 128, "w": 64, "h": 32, "anchorX": 32, "anchorY": 16 },
+
+    "fist_left": { "x": 0, "y": 128, "w": 64, "h": 32, "anchorX": 32, "anchorY": 16, "flipX": true },
+
+    "bat": { "x": 400, "y": 64, "w": 48, "h": 48, "anchorX": 24, "anchorY": 24 },
+    "bat_1": { "x": 400, "y": 64, "w": 48, "h": 48, "anchorX": 24, "anchorY": 24 },
+    "bat_2": { "x": 448, "y": 64, "w": 48, "h": 48, "anchorX": 24, "anchorY": 24 },
+    "bat_3": { "x": 496, "y": 64, "w": 48, "h": 48, "anchorX": 24, "anchorY": 24 },
+    "bat_4": { "x": 544, "y": 64, "w": 48, "h": 48, "anchorX": 24, "anchorY": 24 },
+
+    "slime_death_1": { "x": 400, "y": 128, "w": 48, "h": 24, "anchorX": 24, "anchorY": 24 },
+    "slime_death_2": { "x": 448, "y": 128, "w": 48, "h": 24, "anchorX": 24, "anchorY": 24 },
+    "slime_death_3": { "x": 496, "y": 128, "w": 48, "h": 24, "anchorX": 24, "anchorY": 24 },
+
+    "bat_standing": { "x": 544, "y": 128, "w": 48, "h": 48, "anchorX": 24, "anchorY": 48 },
+
+    "tile_ground": { "x": 0, "y": 192, "w": 48, "h": 48, "anchorX": 0, "anchorY": 0 },
+    "tile_wood": { "x": 48, "y": 192, "w": 48, "h": 48, "anchorX": 0, "anchorY": 0 },
+    "tile_brick": { "x": 96, "y": 192, "w": 48, "h": 48, "anchorX": 0, "anchorY": 0 },
+    "tile_cloud": { "x": 144, "y": 192, "w": 48, "h": 48, "anchorX": 0, "anchorY": 0 },
+
+    "ting_1": { "x": 208, "y": 192, "w": 32, "h": 32, "anchorX": 16, "anchorY": 16 },
+    "ting_2": { "x": 240, "y": 192, "w": 32, "h": 32, "anchorX": 16, "anchorY": 16 },
+    "ting_3": { "x": 272, "y": 192, "w": 32, "h": 32, "anchorX": 16, "anchorY": 16 },
+    "ting": { "x": 208, "y": 192, "w": 32, "h": 32, "anchorX": 16, "anchorY": 16 },
+
+    "health": { "x": 304, "y": 192, "w": 32, "h": 32, "anchorX": 16, "anchorY": 16 },
+    "cage": { "x": 336, "y": 176, "w": 48, "h": 64, "anchorX": 24, "anchorY": 64 },
+
+    "tile_spikes": { "x": 0, "y": 240, "w": 48, "h": 48, "anchorX": 0, "anchorY": 0 },
+    "tile_water": { "x": 48, "y": 240, "w": 48, "h": 48, "anchorX": 0, "anchorY": 0 },
+    "tile_fire": { "x": 96, "y": 240, "w": 48, "h": 48, "anchorX": 0, "anchorY": 0 },
+
+    "dust_1": { "x": 160, "y": 240, "w": 32, "h": 32, "anchorX": 16, "anchorY": 32 },
+    "dust_2": { "x": 192, "y": 240, "w": 32, "h": 32, "anchorX": 16, "anchorY": 32 },
+
+    "impact": { "x": 224, "y": 240, "w": 48, "h": 48, "anchorX": 24, "anchorY": 24 },
+    "sparkle": { "x": 272, "y": 240, "w": 32, "h": 32, "anchorX": 16, "anchorY": 16 }
+  }
+}

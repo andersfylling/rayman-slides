@@ -6,6 +6,7 @@ bin/
 /rayman
 /rayman-gui
 *.exe
+*.zip
 *.exe~
 *.dll
 *.so

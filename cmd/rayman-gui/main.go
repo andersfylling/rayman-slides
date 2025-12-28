@@ -4,6 +4,7 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"os"
 	"time"
@@ -20,6 +21,9 @@ import (
 	"github.com/andersfylling/rayman-slides/internal/input"
 	"github.com/andersfylling/rayman-slides/internal/render"
 )
+
+//go:embed assets
+var assetsFS embed.FS
 
 type keyboardTag struct{}
 
@@ -43,6 +47,11 @@ func run() error {
 
 	inputSystem := input.NewGioInput()
 	renderer := render.NewGioRenderer()
+
+	// Load sprite atlas
+	if err := renderer.LoadSprites(assetsFS); err != nil {
+		fmt.Printf("Warning: Could not load sprites: %v\n", err)
+	}
 
 	world := game.NewWorld()
 	tileMap := game.DemoLevelForViewport(80, 45)
