@@ -11,15 +11,15 @@ cd rayman-slides
 make build
 
 # Run the game
-./bin/rayman
+make run
 
-# Controls: WASD or arrow keys to move, Q or Esc to quit
+# Controls: WASD to move, J to attack (hold to charge), Q or Esc to quit
 ```
 
 ### Requirements
 
 - Go 1.22+
-- A terminal with color support
+- Wayland or X11 display server
 
 ## About
 
@@ -28,11 +28,12 @@ This project recreates the gameplay and feel of Rayman 1 using entirely custom, 
 ### Key Features
 
 - Limbless character with progressive ability unlocks (telescopic fist, grappling, helicopter hair, running)
+- Charge-release attack mechanic (hold J to charge, release to fire fist)
 - 6 thematic worlds mixing natural and imaginary landscapes
 - Collectible-based progression (free all caged creatures to unlock the final world)
 - Boss battles at the end of each world
 - Swappable "Profiles" (asset packs) for different visual themes
-- **Terminal-based rendering** - runs in any terminal
+- **Gio-based rendering** - Native Wayland support, GPU-accelerated
 
 ### Why "Slides"?
 
@@ -42,22 +43,25 @@ The project uses a "profile" system allowing different skins/asset packs to slid
 
 ```
 cmd/
-  rayman/       # Game client
-  rayserver/    # Dedicated multiplayer server
-  lookup/       # Room code discovery service
+  rayman-gui/     # Game client (Gio)
+  rayserver/      # Dedicated multiplayer server
+  lookup/         # Room code discovery service
 
 internal/
-  game/         # ECS world, components, systems
-  collision/    # Tile-based + AABB collision
-  render/       # Terminal rendering (ASCII, half-block, braille)
-  input/        # Keyboard capture, intent mapping
-  network/      # Client-server transport
-  sync/         # State synchronization
-  lobby/        # Room codes for multiplayer
-  protocol/     # Wire format, messages
+  game/           # ECS world, components, systems
+  collision/      # Tile-based + AABB collision
+  render/         # Gio GPU rendering
+  input/          # Keyboard capture, intent mapping
+  client/         # Client-side prediction
+  server/         # Authoritative game server
+  network/        # Client-server transport
+  sync/           # State synchronization
+  lobby/          # Room codes for multiplayer
+  protocol/       # Wire format, messages
 
-adr/            # Architectural Decision Records
-docs/           # Reference material
+docs/             # Documentation
+  sprites.md      # Sprite specifications
+adr/              # Architectural Decision Records
 ```
 
 ## Development
@@ -90,7 +94,12 @@ See the [adr/](adr/) folder for architectural decisions:
 - [Game Loop: Tick-based](adr/2025-12-27-game-loop-tick-based.md)
 - [ECS: mlange-42/ark](adr/2025-12-27-ecs-library.md)
 - [Network: Client-server TCP](adr/2025-12-27-network-architecture.md)
-- [Rendering: Tiered terminal](adr/2025-12-27-terminal-rendering.md)
+- [Rendering: Gio](adr/2025-12-28-gio-rendering.md)
+- [Input Handling](adr/2025-12-27-input-handling.md)
+
+## Documentation
+
+- [Sprite Specifications](docs/sprites.md) - All sprites, animations, and atlas layout
 
 ## Contributing
 
@@ -100,11 +109,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 - **Language:** Go
 - **ECS:** [mlange-42/ark](https://github.com/mlange-42/ark)
-- **Terminal:** [gdamore/tcell](https://github.com/gdamore/tcell)
+- **Rendering:** [Gio](https://gioui.org) (native Wayland, GPU-accelerated)
 
 ## Status
 
-Early development - basic movement and collision working.
+Early development - movement, collision, and charge-release attack working.
 
 ## License
 
