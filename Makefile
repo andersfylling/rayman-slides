@@ -1,4 +1,4 @@
-.PHONY: build run server lookup test clean fmt lint
+.PHONY: build run server lookup test clean fmt lint sprites-debug
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
@@ -47,3 +47,8 @@ clean:
 deps:
 	go mod tidy
 	go mod download
+
+# Generate sprite debug GIF
+sprites-debug:
+	go run ./cmd/sprite-debug
+	@echo "Open sprites.debug.gif in browser to inspect sprite regions"

@@ -7,6 +7,9 @@ bin/
 /rayman-gui
 *.exe
 *.zip
+
+# Debug output
+sprites.debug.gif
 *.exe~
 *.dll
 *.so
