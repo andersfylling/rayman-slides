@@ -3,12 +3,15 @@ module github.com/andersfylling/rayman-slides
 go 1.25.5
 
 require (
-	github.com/gdamore/encoding v1.0.1 // indirect
-	github.com/gdamore/tcell/v2 v2.13.5 // indirect
-	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
-	github.com/mlange-42/ark v0.7.0 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
+	gioui.org v0.9.0
+	github.com/mlange-42/ark v0.7.0
+)
+
+require (
+	gioui.org/shader v1.0.8 // indirect
+	github.com/go-text/typesetting v0.3.0 // indirect
+	golang.org/x/exp/shiny v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
+	golang.org/x/image v0.31.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 )

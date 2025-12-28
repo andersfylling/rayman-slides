@@ -1,6 +1,8 @@
 package game
 
 import (
+	"fmt"
+
 	"github.com/andersfylling/rayman-slides/internal/collision"
 	"github.com/andersfylling/rayman-slides/internal/protocol"
 	"github.com/mlange-42/ark/ecs"
@@ -99,9 +101,9 @@ func (w *World) runInputSystem() {
 	}
 }
 
-// runAttackSystem handles instant attack on key press
-// Attack fires immediately when the key is pressed (rising edge detection).
-// This avoids the fundamental terminal limitation of not having key release events.
+// runAttackSystem handles charge-release attack mechanics.
+// Press attack key to start charging, release to fire.
+// Longer charge = greater fist travel distance.
 func (w *World) runAttackSystem() {
 	// Collect fists to spawn (can't spawn during query iteration)
 	type fistSpawn struct {
@@ -125,33 +127,68 @@ func (w *World) runAttackSystem() {
 
 		attackPressed := ctrl.Intents&protocol.IntentAttack != 0
 
-		// Detect rising edge: key just pressed this frame (wasn't pressed last frame)
+		// Detect edges
 		attackJustPressed := attackPressed && !attack.AttackWasPressed
+		attackJustReleased := !attackPressed && attack.AttackWasPressed
 
 		// Update state for next frame's edge detection
 		attack.AttackWasPressed = attackPressed
 
-		// Fire immediately on key press, if not in cooldown
-		if attackJustPressed && !attack.Attacking {
-			// Spawn fist projectile immediately with fixed distance
+		// Start charging on key press (if not in cooldown)
+		if attackJustPressed && !attack.Attacking && !attack.Charging {
+			attack.Charging = true
+			attack.ChargeTicks = 0
+		}
+
+		// Continue charging while key held
+		if attack.Charging && attackPressed {
+			attack.ChargeTicks++
+			if attack.ChargeTicks > MaxChargeTicks {
+				attack.ChargeTicks = MaxChargeTicks
+			}
+		}
+
+		// Fire on key release
+		if attackJustReleased && attack.Charging {
+			// Calculate distance based on charge time
+			chargeRatio := float64(attack.ChargeTicks) / float64(MaxChargeTicks)
+			distance := MinFistDistance + chargeRatio*(MaxFistDistance-MinFistDistance)
+
 			fistsToSpawn = append(fistsToSpawn, fistSpawn{
 				x:           pos.X,
 				y:           pos.Y,
 				facingRight: attack.FacingRight,
-				distance:    MinFistDistance,
+				distance:    distance,
 				ownerID:     player.ID,
 			})
 
-			// Start punch animation (also serves as cooldown)
+			// End charging, start punch animation
+			attack.Charging = false
+			attack.ChargeTicks = 0
 			attack.Attacking = true
 			attack.TicksLeft = AttackCooldown
 		}
 
-		// Update sprite and animation state
-		if attack.Attacking {
+		// Update sprite based on state
+		if attack.Charging {
+			// Charging animation - 3 levels based on charge progress
+			chargeLevel := 1
+			if attack.ChargeTicks > MaxChargeTicks/3 {
+				chargeLevel = 2
+			}
+			if attack.ChargeTicks > MaxChargeTicks*2/3 {
+				chargeLevel = 3
+			}
+
+			if attack.FacingRight {
+				sprite.ID = fmt.Sprintf("player_charge_right_%d", chargeLevel)
+			} else {
+				sprite.ID = fmt.Sprintf("player_charge_left_%d", chargeLevel)
+			}
+		} else if attack.Attacking {
 			if attack.TicksLeft > 0 {
 				attack.TicksLeft--
-				// Punch animation (arm extended, no fist attached)
+				// Punch animation (arm extended)
 				if attack.FacingRight {
 					sprite.ID = "player_punch_right"
 				} else {

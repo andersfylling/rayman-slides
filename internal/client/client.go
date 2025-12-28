@@ -1,68 +1,86 @@
 // Package client implements the game client.
-// Handles rendering, input capture, and network communication.
+// The client connects input, server, and renderer.
 package client
 
 import (
+	"github.com/andersfylling/rayman-slides/internal/game"
+	"github.com/andersfylling/rayman-slides/internal/input"
 	"github.com/andersfylling/rayman-slides/internal/protocol"
+	"github.com/andersfylling/rayman-slides/internal/server"
 )
 
-// Config holds client configuration
-type Config struct {
-	ServerAddr string // Empty for local/embedded server
-	PlayerName string
-	RenderMode RenderMode
-}
-
-// RenderMode specifies the terminal rendering approach
-type RenderMode int
-
-const (
-	RenderAuto      RenderMode = iota // Auto-detect best mode
-	RenderASCII                       // Plain ASCII
-	RenderHalfBlock                   // Half-block with color
-	RenderBraille                     // Braille patterns
-)
-
-// Client is the game client
+// Client connects input system to server and provides state for rendering.
+// In single-player, the server runs locally (embedded).
+// In multiplayer, inputs are also sent to an external server.
 type Client struct {
-	config      Config
-	connected   bool
-	serverTick  uint64
-	inputBuffer []protocol.InputFrame
-	// TODO: Renderer
-	// TODO: Input handler
-	// TODO: Network connection
-	// TODO: State interpolation buffer
+	playerID  int
+	sessionID int
+
+	// Input state
+	keyState *input.KeyState
+
+	// Internal server (always runs locally for prediction)
+	server *server.Server
+
+	// External server connection (nil for single-player)
+	// TODO: externalConn *network.Connection
+
+	// State for multiplayer sync
+	lastSentTick uint64
 }
 
-// New creates a new client with the given config
-func New(cfg Config) *Client {
+// New creates a new client.
+func New(playerID int) *Client {
 	return &Client{
-		config:      cfg,
-		inputBuffer: make([]protocol.InputFrame, 0, 8),
+		playerID:  playerID,
+		sessionID: 1, // Single-player uses session 1
+		keyState:  input.NewKeyState(),
 	}
 }
 
-// Connect connects to a remote server or starts embedded server
-func (c *Client) Connect() error {
-	// TODO: If ServerAddr empty, start embedded server
-	// TODO: Otherwise, dial remote server
-	// TODO: Perform handshake
-	return nil
+// SetServer sets the internal server.
+func (c *Client) SetServer(s *server.Server) {
+	c.server = s
+	// Register ourselves as a session
+	c.server.AddSession(c.sessionID, c.playerID, "Player")
 }
 
-// Run starts the client main loop
-func (c *Client) Run() error {
-	// TODO: Initialize terminal
-	// TODO: Start input capture
-	// TODO: Start render loop
-	// TODO: Process network messages
-	return nil
+// ProcessInput handles input events and sends them to the server.
+func (c *Client) ProcessInput(events []input.KeyEvent) {
+	// Update local key state
+	for _, ev := range events {
+		switch ev.Type {
+		case input.KeyDown:
+			c.keyState.SetPressed(ev.Key, true)
+		case input.KeyUp:
+			c.keyState.SetPressed(ev.Key, false)
+		}
+	}
+
+	// Convert to intents and send to server
+	intents := c.keyState.ToIntents()
+	tick := c.server.Tick()
+
+	frame := protocol.InputFrame{
+		Tick:    tick + 1, // Input is for the next tick
+		Intents: intents,
+	}
+
+	// Send to internal server (local prediction)
+	c.server.QueueInput(c.sessionID, frame)
+
+	// TODO: Also send to external server for multiplayer
+	// if c.externalConn != nil {
+	//     c.externalConn.Send(frame)
+	// }
 }
 
-// Disconnect closes the connection
-func (c *Client) Disconnect() {
-	c.connected = false
-	// TODO: Send disconnect message
-	// TODO: Close network connection
+// World returns the current game world state (for rendering).
+func (c *Client) World() *game.World {
+	return c.server.World()
+}
+
+// ShouldQuit checks if quit was requested.
+func (c *Client) ShouldQuit() bool {
+	return c.keyState.IsPressed(input.KeyQuit)
 }

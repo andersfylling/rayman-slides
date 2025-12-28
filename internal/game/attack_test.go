@@ -6,9 +6,9 @@ import (
 	"github.com/andersfylling/rayman-slides/internal/protocol"
 )
 
-// TestAttackInstantOnPress tests that pressing the attack key immediately spawns a fist.
-// This is the new behavior to avoid terminal key release detection delays.
-func TestAttackInstantOnPress(t *testing.T) {
+// TestAttackChargeRelease tests the charge-release attack mechanic.
+// Press to charge, release to fire.
+func TestAttackChargeRelease(t *testing.T) {
 	world := NewWorld()
 	world.SpawnPlayer(1, "Test", 10, 10)
 
@@ -26,18 +26,35 @@ func TestAttackInstantOnPress(t *testing.T) {
 		t.Fatal("Should start with no fists")
 	}
 
-	// Press attack key - fist should spawn immediately on this frame
+	// Press attack key - should start charging, NOT fire yet
 	world.SetPlayerIntent(1, protocol.IntentAttack)
 	world.Update()
 
+	if countFists() != 0 {
+		t.Fatal("Should not fire while still holding attack key")
+	}
+
+	// Continue holding for a few ticks
+	for i := 0; i < 10; i++ {
+		world.SetPlayerIntent(1, protocol.IntentAttack)
+		world.Update()
+	}
+
+	if countFists() != 0 {
+		t.Fatal("Should still not fire while holding attack key")
+	}
+
+	// Release attack key - NOW it should fire
+	world.SetPlayerIntent(1, protocol.IntentNone)
+	world.Update()
+
 	if countFists() != 1 {
-		t.Fatalf("Expected 1 fist immediately after pressing attack, got %d", countFists())
+		t.Fatalf("Expected 1 fist after releasing attack, got %d", countFists())
 	}
 }
 
-// TestAttackNoDoubleSpawn verifies that holding the attack key does not spawn multiple fists.
-// Only the initial key press (rising edge) should trigger an attack.
-func TestAttackNoDoubleSpawn(t *testing.T) {
+// TestAttackQuickTap tests that a quick press-release still fires.
+func TestAttackQuickTap(t *testing.T) {
 	world := NewWorld()
 	world.SpawnPlayer(1, "Test", 10, 10)
 
@@ -50,23 +67,69 @@ func TestAttackNoDoubleSpawn(t *testing.T) {
 		return count
 	}
 
-	// Press attack - first fist spawns
+	// Quick tap: press and release in consecutive frames
 	world.SetPlayerIntent(1, protocol.IntentAttack)
-	world.Update()
+	world.Update() // Press
+
+	world.SetPlayerIntent(1, protocol.IntentNone)
+	world.Update() // Release
 
 	if countFists() != 1 {
-		t.Fatalf("Expected 1 fist after first press, got %d", countFists())
+		t.Fatalf("Expected 1 fist after quick tap, got %d", countFists())
+	}
+}
+
+// TestAttackChargeDistance tests that longer charge = greater distance.
+func TestAttackChargeDistance(t *testing.T) {
+	world := NewWorld()
+	world.SpawnPlayer(1, "Test", 10, 10)
+
+	getFistDistance := func() float64 {
+		query := world.fistFilter.Query()
+		defer query.Close()
+		for query.Next() {
+			_, _, fist := query.Get()
+			return fist.MaxDistance
+		}
+		return 0
 	}
 
-	// Continue holding attack for many ticks - should not spawn more fists
-	for i := 0; i < 60; i++ {
-		world.SetPlayerIntent(1, protocol.IntentAttack)
+	// Quick tap - should get minimum distance
+	world.SetPlayerIntent(1, protocol.IntentAttack)
+	world.Update()
+	world.SetPlayerIntent(1, protocol.IntentNone)
+	world.Update()
+
+	quickTapDistance := getFistDistance()
+	if quickTapDistance < MinFistDistance || quickTapDistance > MinFistDistance+1 {
+		t.Fatalf("Quick tap should give ~MinFistDistance, got %.2f", quickTapDistance)
+	}
+
+	// Wait for cooldown
+	for i := 0; i < AttackCooldown+5; i++ {
+		world.SetPlayerIntent(1, protocol.IntentNone)
 		world.Update()
 	}
 
-	// Still only 1 fist (it may have despawned due to distance, but no new ones)
-	// Actually, we need to check total spawned, not current count
-	// Let's track it differently - check that only 1 was ever spawned
+	// Clear the first fist by running enough updates for it to despawn
+	for i := 0; i < 100; i++ {
+		world.SetPlayerIntent(1, protocol.IntentNone)
+		world.Update()
+	}
+
+	// Long charge - should get more distance
+	world.SetPlayerIntent(1, protocol.IntentAttack)
+	for i := 0; i < 60; i++ { // Hold for 1 second (60 ticks)
+		world.Update()
+	}
+	world.SetPlayerIntent(1, protocol.IntentNone)
+	world.Update()
+
+	chargedDistance := getFistDistance()
+	if chargedDistance <= quickTapDistance {
+		t.Fatalf("Charged attack should travel further than quick tap: %.2f vs %.2f",
+			chargedDistance, quickTapDistance)
+	}
 }
 
 // TestAttackCooldown verifies that attacks have a cooldown period.
@@ -74,33 +137,13 @@ func TestAttackCooldown(t *testing.T) {
 	world := NewWorld()
 	world.SpawnPlayer(1, "Test", 10, 10)
 
-	fistsSpawned := 0
-
-	// First attack
+	// First attack: press and release
 	world.SetPlayerIntent(1, protocol.IntentAttack)
 	world.Update()
-	fistsSpawned++
-
-	// Release and immediately press again - should be in cooldown
-	// The attack is blocked by the Attacking flag (cooldown), not by fist count
 	world.SetPlayerIntent(1, protocol.IntentNone)
 	world.Update()
 
-	// Try to attack during cooldown
-	beforeCooldownExpires := fistsSpawned
-	world.SetPlayerIntent(1, protocol.IntentAttack)
-	world.Update()
-
-	// Check if a new fist was spawned (it shouldn't be)
-	query := world.fistFilter.Query()
-	currentFists := 0
-	for query.Next() {
-		currentFists++
-	}
-
-	// No new fist should have spawned during cooldown
-	// The first fist may have despawned due to distance, but we're checking spawn behavior
-	// We need a different approach - check attack state directly
+	// Check that we're in cooldown (Attacking = true)
 	playerQuery := world.attackFilter.Query()
 	var attackState *AttackState
 	for playerQuery.Next() {
@@ -112,9 +155,22 @@ func TestAttackCooldown(t *testing.T) {
 		t.Fatal("Could not find player attack state")
 	}
 
-	// During cooldown, Attacking should still be true
 	if !attackState.Attacking {
-		t.Fatal("Attack should still be in cooldown (Attacking=true)")
+		t.Fatal("Should be in cooldown after attack")
+	}
+
+	// Try to start another attack during cooldown - should not work
+	world.SetPlayerIntent(1, protocol.IntentAttack)
+	world.Update()
+
+	playerQuery = world.attackFilter.Query()
+	for playerQuery.Next() {
+		_, _, _, attack, _, _ := playerQuery.Get()
+		attackState = attack
+	}
+
+	if attackState.Charging {
+		t.Fatal("Should not be able to charge during cooldown")
 	}
 
 	// Wait for cooldown to expire
@@ -134,32 +190,25 @@ func TestAttackCooldown(t *testing.T) {
 		t.Fatalf("Attack cooldown should have expired after %d ticks", AttackCooldown+5)
 	}
 
-	// Now press attack again - should spawn a new fist
+	// Now should be able to charge again
 	world.SetPlayerIntent(1, protocol.IntentAttack)
 	world.Update()
 
-	// Check that attack started
 	playerQuery = world.attackFilter.Query()
 	for playerQuery.Next() {
 		_, _, _, attack, _, _ := playerQuery.Get()
 		attackState = attack
 	}
 
-	if !attackState.Attacking {
-		t.Fatal("Should be able to attack after cooldown expires")
+	if !attackState.Charging {
+		t.Fatal("Should be able to charge after cooldown expires")
 	}
-
-	_ = beforeCooldownExpires // silence unused warning
 }
 
-// TestAttackRisingEdgeDetection verifies that only the rising edge of the attack key
-// triggers an attack, not continuous presses.
-func TestAttackRisingEdgeDetection(t *testing.T) {
+// TestAttackNoFireWhileHolding verifies that holding attack doesn't fire multiple times.
+func TestAttackNoFireWhileHolding(t *testing.T) {
 	world := NewWorld()
 	world.SpawnPlayer(1, "Test", 10, 10)
-
-	totalFistsSpawned := 0
-	lastFistCount := 0
 
 	countFists := func() int {
 		count := 0
@@ -170,62 +219,22 @@ func TestAttackRisingEdgeDetection(t *testing.T) {
 		return count
 	}
 
-	// Press and hold attack for many frames
+	// Hold attack for many ticks without releasing
 	for i := 0; i < 100; i++ {
 		world.SetPlayerIntent(1, protocol.IntentAttack)
 		world.Update()
-
-		currentCount := countFists()
-		if currentCount > lastFistCount {
-			totalFistsSpawned += currentCount - lastFistCount
-			lastFistCount = currentCount
-		}
 	}
 
-	// Only 1 fist should have been spawned from the initial press
-	if totalFistsSpawned != 1 {
-		t.Fatalf("Expected exactly 1 fist from continuous key press, got %d", totalFistsSpawned)
+	// Should not have fired anything yet
+	if countFists() != 0 {
+		t.Fatalf("Should not fire while holding, got %d fists", countFists())
 	}
 
-	// Release and wait for cooldown
-	for i := 0; i < AttackCooldown+5; i++ {
-		world.SetPlayerIntent(1, protocol.IntentNone)
-		world.Update()
-	}
-
-	// Press again - should spawn another fist (new rising edge)
-	beforeCount := countFists()
-	world.SetPlayerIntent(1, protocol.IntentAttack)
-	world.Update()
-	afterCount := countFists()
-
-	if afterCount <= beforeCount {
-		t.Fatal("Expected new fist after release and re-press")
-	}
-}
-
-// TestFistSpawnsWithMinDistance verifies that instant attacks spawn with minimum distance.
-func TestFistSpawnsWithMinDistance(t *testing.T) {
-	world := NewWorld()
-	world.SpawnPlayer(1, "Test", 10, 10)
-
-	// Press attack
-	world.SetPlayerIntent(1, protocol.IntentAttack)
+	// Release - now it should fire exactly once
+	world.SetPlayerIntent(1, protocol.IntentNone)
 	world.Update()
 
-	// Check fist distance
-	query := world.fistFilter.Query()
-	found := false
-	for query.Next() {
-		_, _, fist := query.Get()
-		found = true
-		if fist.MaxDistance != MinFistDistance {
-			t.Fatalf("Expected fist distance to be MinFistDistance (%.1f), got %.1f",
-				MinFistDistance, fist.MaxDistance)
-		}
-	}
-
-	if !found {
-		t.Fatal("No fist was spawned")
+	if countFists() != 1 {
+		t.Fatalf("Expected exactly 1 fist after release, got %d", countFists())
 	}
 }

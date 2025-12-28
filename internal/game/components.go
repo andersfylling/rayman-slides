@@ -53,9 +53,13 @@ type Grounded struct {
 
 // AttackState tracks attack animation state
 type AttackState struct {
-	Attacking   bool // Currently in attack animation
+	Attacking   bool // Currently in attack animation (post-release)
 	TicksLeft   int  // Animation ticks remaining
 	FacingRight bool // Direction of attack
+
+	// Charging state
+	Charging    bool // Currently charging (key held)
+	ChargeTicks int  // How long the key has been held
 
 	// Attack key tracking for edge detection
 	AttackWasPressed bool // Was attack key pressed last frame (for edge detection)

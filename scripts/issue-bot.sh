@@ -200,12 +200,23 @@ Analyze this issue thoroughly. Do NOT make any code changes or commits yet.
 4. Determine if there are multiple valid approaches to fix this
 5. Determine if this issue can be verified programmatically (tests, build, etc.) or requires manual user verification
 
+## CRITICAL: Avoid Hallucination
+
+You MUST only work with what actually exists in this codebase:
+
+- **Verify files exist**: Before listing ANY file in your response, use Glob or Read to confirm it exists. Do NOT guess or assume file paths.
+- **Do not invent features**: Only reference features, protocols, or libraries that are actually implemented in this codebase. If you're unsure whether something exists, search for it first.
+- **Focus on the actual problem**: Address exactly what the user reported. Do not suggest tangential improvements or unrelated features.
+- **No assumptions**: If you haven't read a file, don't claim to know what's in it.
+
+If you find yourself thinking "this codebase might have X" or "they could be using Y" - STOP and verify with a search before proceeding.
+
 ## Output Format
 
 When done investigating, output your findings in this exact format:
 
 ---INVESTIGATION_RESULT---
-FILES: <comma-separated list of relevant file paths>
+FILES: <comma-separated list of file paths you have VERIFIED exist using Glob/Read>
 ROOT_CAUSE: <1-2 sentence description of the root cause or what needs to change>
 NEEDS_DECISION: <YES if there are multiple valid approaches and user should choose, NO if there's one clear approach>
 APPROACH: <If NEEDS_DECISION is NO: 1-2 sentence description of how to fix it>
@@ -214,6 +225,7 @@ VERIFIABLE: <YES if can be tested programmatically, NO if requires manual user t
 ---END_INVESTIGATION---
 
 IMPORTANT:
+- FILES must only contain paths you have confirmed exist. Never list a file you haven't verified.
 - If the user has already indicated a preference in the comments, set NEEDS_DECISION to NO and use their preferred approach.
 - Only set NEEDS_DECISION to YES if there are genuinely different approaches with meaningful trade-offs AND the user hasn't expressed a preference.
 
@@ -385,6 +397,13 @@ ERROR: <error description if failed, or N/A>
 - Do not make unrelated changes
 - Keep changes minimal and focused
 - CRITICAL: Only use "Fixes/Closes/Resolves" if VERIFIABLE is YES, otherwise use "Refs"
+
+## CRITICAL: Avoid Hallucination
+
+- Only modify files listed in the investigation. If you need to modify other files, verify they exist first.
+- Do NOT create new files unless absolutely necessary for the fix. The investigation should have identified all relevant files.
+- Do NOT add features, libraries, or protocols that don't already exist in the codebase unless explicitly required.
+- If something seems missing, check if it actually exists before assuming you need to create it.
 EOF
 }
 

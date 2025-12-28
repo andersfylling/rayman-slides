@@ -5,11 +5,11 @@ LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
 
 # Build all binaries
 build:
-	go build $(LDFLAGS) -o bin/rayman ./cmd/rayman
+	go build $(LDFLAGS) -tags gio -o bin/rayman ./cmd/rayman-gui
 	go build $(LDFLAGS) -o bin/rayserver ./cmd/rayserver
 	go build $(LDFLAGS) -o bin/lookup ./cmd/lookup
 
-# Build and run client
+# Build and run game client (Gio)
 run: build
 	./bin/rayman
 

@@ -1,12 +1,18 @@
 # Input Handling
 
-**Status:** Accepted
+**Status:** Accepted (Partially Superseded)
+**See also:** [2025-12-28-gio-rendering.md](./2025-12-28-gio-rendering.md)
 
 ## Context
 
-Terminal game with tick-based server. Need to capture player input and transmit to server. Terminal input has limitations (often no key-up events). Network latency affects responsiveness.
+Tick-based game with networked server. Need to capture player input and transmit to server. Network latency affects responsiveness.
 
-## Terminal Input Constraints
+**Note:** The original design assumed terminal rendering which lacks key-up events. The switch to Gio rendering (see linked ADR) provides real KeyUp/KeyDown events, making the "Simulated Key State" approach obsolete. The intent-based tick buffering design remains valid.
+
+## Terminal Input Constraints (Historical)
+
+> **Note:** These constraints applied to the original terminal-based design.
+> With Gio rendering, we have proper KeyDown/KeyUp events from the OS.
 
 Unlike graphical games, terminals typically:
 - Only report key-down, not key-up
@@ -66,7 +72,9 @@ Collect all input during a tick window. Send as single batch.
 - Adds up to one tick of latency
 - Must track tick boundaries on client
 
-### Simulated Key State
+### Simulated Key State (No Longer Needed)
+
+> **Superseded:** With Gio rendering, we have real KeyUp events from the OS.
 
 Since terminals lack key-up, simulate held state with timeouts.
 
@@ -99,10 +107,10 @@ Client predicts outcome locally, server corrects if wrong.
 
 ## Decision
 
-**Intent-based with tick buffering and simulated key state:**
+**Intent-based with tick buffering:**
 
 1. **Key → Intent mapping** - Client converts keys to intents (configurable bindings)
-2. **Simulated hold state** - Key repeat within threshold = held, gap = released
+2. **Real key state** - Gio provides native KeyDown/KeyUp events (simulated hold no longer needed)
 3. **Tick-aligned buffer** - Collect intents, send once per tick
 4. **Intent frame** - Each tick's input is a set of active intents
 
@@ -128,9 +136,9 @@ Client-side prediction deferred. Start simple, add if latency is painful.
 
 ```
 input/
-  capture.go    # Terminal key capture (tcell/bubbletea)
-  mapping.go    # Key → Intent configuration
-  state.go      # Simulated hold state with decay
+  keys.go       # GameKey enum, KeyEvent types
+  gio.go        # Gio key capture (real KeyDown/KeyUp)
+  keystate.go   # Key state tracking, Intent conversion
   buffer.go     # Tick-aligned batching
 ```
 
@@ -138,7 +146,7 @@ input/
 
 - **Rebindable keys** - Users can customize controls
 - **Tick alignment** - Inputs arrive in predictable order
-- **Hold simulation** - Enables running, charging attacks
+- **Real key events** - Gio provides native KeyDown/KeyUp, enabling precise charge-release mechanics
 - **Single packet per tick** - Efficient network usage
 - **No prediction yet** - May feel laggy on high-latency connections (revisit later)
 - **Bitmask intents** - Compact representation, max ~8 simultaneous intents (expandable)
