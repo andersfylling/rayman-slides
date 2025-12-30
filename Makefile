@@ -1,4 +1,4 @@
-.PHONY: build run server lookup test clean fmt lint sprites-debug
+.PHONY: build run server lookup test clean fmt lint sprites-debug sprite-editor
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
@@ -52,3 +52,7 @@ deps:
 sprites-debug:
 	go run ./cmd/sprite-debug
 	@echo "Open sprites.debug.gif in browser to inspect sprite regions"
+
+# Run sprite editor GUI
+sprite-editor:
+	go run -tags gio ./cmd/sprite-editor

@@ -22,6 +22,11 @@ type SpriteRegion struct {
 	AnchorX int  `json:"anchorX"`
 	AnchorY int  `json:"anchorY"`
 	FlipX   bool `json:"flipX,omitempty"`
+	// Hitbox relative to sprite origin
+	HitX int `json:"hitX,omitempty"`
+	HitY int `json:"hitY,omitempty"`
+	HitW int `json:"hitW,omitempty"`
+	HitH int `json:"hitH,omitempty"`
 }
 
 type AtlasData struct {
@@ -42,7 +47,7 @@ func main() {
 
 func run() error {
 	// Load atlas metadata
-	jsonData, err := os.ReadFile("assets/sprites/atlas.json")
+	jsonData, err := os.ReadFile("assets/sprites/default/atlas.json")
 	if err != nil {
 		return fmt.Errorf("reading atlas.json: %w", err)
 	}
@@ -51,8 +56,8 @@ func run() error {
 		return fmt.Errorf("parsing atlas.json: %w", err)
 	}
 
-	// Load atlas image
-	imgFile, err := os.Open("assets/sprites/atlas.jpg")
+	// Load atlas image (use filename from JSON)
+	imgFile, err := os.Open("assets/sprites/default/" + data.Image)
 	if err != nil {
 		return fmt.Errorf("opening atlas image: %w", err)
 	}
@@ -78,8 +83,14 @@ func run() error {
 	fmt.Println("─────────────────")
 	for _, name := range names {
 		region := data.Sprites[name]
-		fmt.Printf("  %-30s  x:%-4d y:%-4d w:%-4d h:%-4d anchor:(%d,%d)\n",
-			name, region.X, region.Y, region.W, region.H, region.AnchorX, region.AnchorY)
+		hitInfo := ""
+		if region.HitW > 0 && region.HitH > 0 {
+			if region.HitX != 0 || region.HitY != 0 || region.HitW != region.W || region.HitH != region.H {
+				hitInfo = fmt.Sprintf(" hit:(%d,%d,%d,%d)", region.HitX, region.HitY, region.HitW, region.HitH)
+			}
+		}
+		fmt.Printf("  %-25s  x:%-4d y:%-4d w:%-4d h:%-4d anchor:(%d,%d)%s\n",
+			name, region.X, region.Y, region.W, region.H, region.AnchorX, region.AnchorY, hitInfo)
 	}
 	fmt.Printf("\nTotal: %d sprites\n\n", len(names))
 
@@ -156,110 +167,144 @@ func generateStaticGrid(names []string) error {
 func generateAnimatedPreview() error {
 	outGif := &gif.GIF{}
 
-	// Layout: 4 columns showing different animations
-	// Row 1: Player walk, Player on ground walking
-	// Row 2: Player charge + punch, Slime
-	// Row 3: Bat flying, Fist projectile
-	// Row 4: Tiles demo
+	width := 900
+	height := 700
 
-	width := 400
-	height := 400
-	groundY := 70 // Ground level within each cell
-
-	// Animation frames (8 frames total for smooth loop)
-	numFrames := 16
-	frameDelay := 10 // 100ms per frame
+	numFrames := 32
+	frameDelay := 8 // 80ms per frame
 
 	for f := 0; f < numFrames; f++ {
 		bounds := image.Rect(0, 0, width, height)
 		frame := image.NewPaletted(bounds, palette)
 
-		// Fill with dark background
-		draw.Draw(frame, bounds, &image.Uniform{color.RGBA{30, 30, 40, 255}}, image.Point{}, draw.Src)
+		// Sky gradient background
+		for y := 0; y < height; y++ {
+			shade := uint8(60 + y*40/height)
+			for x := 0; x < width; x++ {
+				frame.Set(x, y, color.RGBA{shade / 2, shade / 2, shade, 255})
+			}
+		}
 
-		// Draw section labels
-		drawLabel(frame, 10, 10, "PLAYER WALK (8 FRAMES)")
-		drawLabel(frame, 210, 10, "WALK ON TILES")
-		drawLabel(frame, 10, 110, "CHARGE -> PUNCH ATTACK")
-		drawLabel(frame, 210, 110, "SLIME ENEMY (4 FRAMES)")
-		drawLabel(frame, 10, 210, "BAT ENEMY (4 FRAMES)")
-		drawLabel(frame, 210, 210, "FIST PROJECTILE")
-		drawLabel(frame, 10, 310, "TILE TYPES")
-		drawLabel(frame, 210, 310, "COLLECTIBLE ITEMS")
+		// ======== SCENE 1: WORLD (top half) ========
+		drawLabel(frame, 10, 10, "WORLD SCENE")
 
-		// === Walk Cycle (top-left) ===
-		walkFrame := (f % 8) + 1
+		groundY := 220
+		tileSize := 50
+
+		// Draw grass ground
+		for x := 0; x < width; x += tileSize {
+			drawSpriteAtSize(frame, "tile_grass", x, groundY, tileSize, tileSize)
+		}
+
+		// Draw some platforms with wood/stone
+		drawSpriteAtSize(frame, "tile_wood", 300, groundY-80, tileSize, tileSize)
+		drawSpriteAtSize(frame, "tile_wood", 350, groundY-80, tileSize, tileSize)
+		drawSpriteAtSize(frame, "tile_stone", 400, groundY-80, tileSize, tileSize)
+
+		// Cloud platform
+		drawSpriteAtSize(frame, "tile_cloud", 550, groundY-150, 80, 50)
+		drawSpriteAtSize(frame, "tile_cloud", 700, groundY-120, 80, 50)
+
+		// Player walking on grass
+		walkFrame := (f / 2 % 4) + 1
 		walkSprite := fmt.Sprintf("player_walk_%d", walkFrame)
-		drawSpriteAt(frame, walkSprite, 80, 30+groundY)
+		playerX := 50 + (f * 6 % 200)
+		drawSpriteAtScaled(frame, walkSprite, playerX, groundY, 0.6)
 
-		// === Walk on Ground (top-right) ===
-		// Draw ground tiles
-		for x := 200; x < 400; x += 32 {
-			drawSpriteAtSize(frame, "tile_ground", x, 30+groundY, 32, 32)
-		}
-		// Draw walking player moving
-		walkX := 220 + (f * 8 % 160)
-		drawSpriteAt(frame, walkSprite, walkX, 30+groundY)
-
-		// === Charge -> Punch (middle-left) ===
-		var chargeSprite string
-		if f < 4 {
-			chargeSprite = "player_charge_right_1"
-		} else if f < 8 {
-			chargeSprite = "player_charge_right_2"
-		} else if f < 12 {
-			chargeSprite = "player_charge_right_3"
+		// Player jumping on platform
+		jumpPhase := f % 16
+		jumpY := groundY - 80
+		if jumpPhase < 8 {
+			jumpY = groundY - 80 - jumpPhase*4
 		} else {
-			chargeSprite = "player_punch_right"
+			jumpY = groundY - 80 - (16-jumpPhase)*4
 		}
-		drawSpriteAt(frame, chargeSprite, 80, 130+groundY)
+		drawSpriteAtScaled(frame, "player_jump", 350, jumpY, 0.6)
 
-		// === Slime (middle-right) ===
-		slimeFrame := (f/4)%4 + 1
+		// Slime on ground bouncing
+		slimeFrame := (f / 4 % 4) + 1
 		slimeSprite := fmt.Sprintf("slime_%d", slimeFrame)
-		// Draw ground
-		for x := 200; x < 400; x += 32 {
-			drawSpriteAtSize(frame, "tile_ground", x, 130+groundY, 32, 32)
-		}
-		// Slime bouncing
 		bounceY := 0
 		if f%8 < 4 {
-			bounceY = (f % 4) * 3
+			bounceY = (f % 4) * 4
 		} else {
-			bounceY = (4 - (f % 4)) * 3
+			bounceY = (4 - f%4) * 4
 		}
-		drawSpriteAt(frame, slimeSprite, 300, 130+groundY-bounceY)
+		drawSpriteAtScaled(frame, slimeSprite, 650, groundY-bounceY, 0.5)
 
-		// === Bat Flying (bottom-left row 1) ===
-		batFrame := (f/2)%4 + 1
+		// Bat flying
+		batFrame := (f / 2 % 4) + 1
 		batSprite := fmt.Sprintf("bat_%d", batFrame)
-		// Bat flying in sine wave
-		batX := 30 + (f * 6 % 140)
-		batY := 230 + int(float64(f%16)*1.5)
-		if f >= 8 {
-			batY = 230 + int(float64(16-f%16)*1.5)
-		}
-		drawSpriteAt(frame, batSprite, batX, batY)
+		batX := 750 + int(float64(f%16-8)*3)
+		batY := groundY - 100 + int(float64(f%8-4)*2)
+		drawSpriteAtScaled(frame, batSprite, batX, batY, 0.5)
 
-		// === Fist Projectile (bottom-right row 1) ===
-		fistFrame := (f / 2) % 3
-		fistSprites := []string{"fist_right_1", "fist_right_2", "fist_right_3"}
-		fistSprite := fistSprites[fistFrame]
-		fistX := 220 + (f * 10 % 160)
-		drawSpriteAt(frame, fistSprite, fistX, 250)
+		// Orbs floating
+		orbFrame := (f / 4 % 3) + 1
+		orbSprite := fmt.Sprintf("orb_%d", orbFrame)
+		drawSpriteAtScaled(frame, orbSprite, 320, groundY-120, 0.5)
+		drawSpriteAtScaled(frame, orbSprite, 370, groundY-120, 0.5)
 
-		// === Tiles (bottom-left row 2) ===
-		tiles := []string{"tile_ground", "tile_wood", "tile_brick", "tile_cloud"}
-		for i, tile := range tiles {
-			drawSpriteAtSize(frame, tile, 20+i*40, 330, 32, 32)
+		// ======== SCENE 2: COMBAT (middle) ========
+		drawLabel(frame, 10, 280, "COMBAT SCENE")
+
+		combatGroundY := 420
+		// Draw dirt ground for combat area
+		for x := 0; x < width; x += tileSize {
+			drawSpriteAtSize(frame, "tile_dirt", x, combatGroundY, tileSize, tileSize)
 		}
 
-		// === Collectibles (bottom-right row 2) ===
-		tingFrame := (f / 4) % 3
-		tingSprites := []string{"ting_1", "ting_2", "ting_3"}
-		drawSpriteAt(frame, tingSprites[tingFrame], 240, 350)
-		drawSpriteAt(frame, "health", 290, 350)
-		drawSpriteAt(frame, "cage", 340, 350)
+		// Player attacking
+		var attackSprite string
+		if f%16 < 8 {
+			attackSprite = "player_attack_1"
+		} else {
+			attackSprite = "player_attack_2"
+		}
+		drawSpriteAtScaled(frame, attackSprite, 100, combatGroundY, 0.7)
+
+		// Fist projectile flying
+		fistFrame := (f / 3 % 3) + 1
+		fistSprite := fmt.Sprintf("fist_%d", fistFrame)
+		fistX := 180 + (f * 12 % 300)
+		drawSpriteAtScaled(frame, fistSprite, fistX, combatGroundY-50, 0.6)
+
+		// Slime getting hit (shaking)
+		slimeHitX := 500 + (f%4 - 2)
+		drawSpriteAtScaled(frame, slimeSprite, slimeHitX, combatGroundY-bounceY, 0.6)
+
+		// Health pickup
+		drawSpriteAtScaled(frame, "health", 700, combatGroundY-30, 0.6)
+
+		// Cage with character
+		drawSpriteAtScaled(frame, "cage_closed", 800, combatGroundY, 0.6)
+
+		// ======== SCENE 3: HAZARDS (bottom) ========
+		drawLabel(frame, 10, 480, "HAZARDS + TILES")
+
+		hazardY := 620
+		// Draw various hazard tiles
+		drawSpriteAtSize(frame, "tile_spikes", 50, hazardY, 60, 60)
+		drawLabel(frame, 50, hazardY+65, "SPIKES")
+
+		drawSpriteAtSize(frame, "tile_water", 150, hazardY, 60, 60)
+		drawLabel(frame, 150, hazardY+65, "WATER")
+
+		drawSpriteAtSize(frame, "tile_fire", 250, hazardY, 60, 70)
+		drawLabel(frame, 250, hazardY+75, "FIRE")
+
+		// Show tile types
+		drawSpriteAtSize(frame, "tile_grass", 380, hazardY, 50, 50)
+		drawSpriteAtSize(frame, "tile_dirt", 440, hazardY, 50, 50)
+		drawSpriteAtSize(frame, "tile_wood", 500, hazardY, 50, 50)
+		drawSpriteAtSize(frame, "tile_stone", 560, hazardY, 50, 50)
+		drawSpriteAtSize(frame, "tile_cloud", 620, hazardY, 70, 40)
+
+		// Collectibles
+		drawSpriteAtScaled(frame, "orb_1", 720, hazardY+20, 0.5)
+		drawSpriteAtScaled(frame, "orb_2", 760, hazardY+20, 0.5)
+		drawSpriteAtScaled(frame, "orb_3", 800, hazardY+20, 0.5)
+		drawSpriteAtScaled(frame, "health", 850, hazardY+20, 0.5)
 
 		outGif.Image = append(outGif.Image, frame)
 		outGif.Delay = append(outGif.Delay, frameDelay)
@@ -288,46 +333,88 @@ func generateAtlasOverlay() error {
 	overlay := image.NewRGBA(bounds)
 	draw.Draw(overlay, bounds, atlasImg, bounds.Min, draw.Src)
 
-	// Define colors for different sprite types
-	colorPlayer := color.RGBA{0, 255, 0, 255}   // Green
-	colorEnemy := color.RGBA{255, 0, 0, 255}    // Red
-	colorTile := color.RGBA{0, 150, 255, 255}   // Blue
-	colorItem := color.RGBA{255, 255, 0, 255}   // Yellow
-	colorEffect := color.RGBA{255, 0, 255, 255} // Magenta
+	// Define distinct colors for different sprite groups based on position
 	colorAnchor := color.RGBA{255, 255, 255, 255} // White
+
+	// Color palette for different groups
+	groupColors := []color.RGBA{
+		{0, 255, 0, 255},     // Green - walk frames
+		{0, 200, 255, 255},   // Cyan - idle/jump
+		{255, 100, 100, 255}, // Light red - attack
+		{255, 0, 255, 255},   // Magenta - fist
+		{0, 100, 255, 255},   // Blue - tiles row 1
+		{255, 255, 0, 255},   // Yellow - items (ting, health, cage)
+		{255, 150, 0, 255},   // Orange - slimes
+		{200, 0, 200, 255},   // Purple - bats
+		{100, 255, 100, 255}, // Light green - slime death / misc
+		{0, 255, 200, 255},   // Teal - tiles row 2
+		{255, 100, 200, 255}, // Pink - effects
+	}
+
+	// Hitbox color
+	hitboxColor := color.RGBA{255, 100, 100, 255} // Red for hitbox
 
 	// Draw borders and anchors for each sprite
 	for name, region := range data.Sprites {
-		// Choose color based on sprite type
+		// Choose color based on position in atlas
 		var borderColor color.RGBA
-		switch {
-		case len(name) >= 6 && name[:6] == "player":
-			borderColor = colorPlayer
-		case len(name) >= 4 && name[:4] == "fist":
-			borderColor = colorPlayer
-		case len(name) >= 5 && name[:5] == "slime":
-			borderColor = colorEnemy
-		case len(name) >= 3 && name[:3] == "bat":
-			borderColor = colorEnemy
-		case len(name) >= 4 && name[:4] == "tile":
-			borderColor = colorTile
-		case len(name) >= 4 && name[:4] == "ting":
-			borderColor = colorItem
-		case name == "health" || name == "cage":
-			borderColor = colorItem
-		case name == "dust_1" || name == "dust_2" || name == "impact" || name == "sparkle":
-			borderColor = colorEffect
-		default:
-			borderColor = color.RGBA{200, 200, 200, 255} // Gray for unknown
+
+		// Determine group by Y position and X position
+		if region.Y < 160 { // Row 1
+			if region.X < 600 {
+				borderColor = groupColors[0] // Green - walk frames
+			} else if region.X < 720 {
+				borderColor = groupColors[1] // Cyan - jump
+			} else {
+				borderColor = groupColors[6] // Orange - slimes
+			}
+		} else if region.Y < 350 { // Row 2
+			if region.X < 600 {
+				borderColor = groupColors[2] // Light red - attack frames
+			} else {
+				borderColor = groupColors[7] // Purple - bats
+			}
+		} else if region.Y < 480 { // Row 3
+			if region.X < 500 {
+				borderColor = groupColors[3] // Magenta - fist frames
+			} else {
+				borderColor = groupColors[8] // Light green - misc
+			}
+		} else if region.Y < 620 { // Row 4
+			if region.X < 530 {
+				borderColor = groupColors[4] // Blue - tiles
+			} else if region.X < 800 {
+				borderColor = groupColors[5] // Yellow - tings
+			} else {
+				borderColor = groupColors[5] // Yellow - health/cage
+			}
+		} else { // Row 5
+			if region.X < 400 {
+				borderColor = groupColors[9] // Teal - hazard tiles
+			} else {
+				borderColor = groupColors[10] // Pink - effects
+			}
 		}
 
 		// Draw border rectangle (2px thick for visibility)
 		drawBorderRGBA(overlay, region.X, region.Y, region.W, region.H, borderColor, 2)
 
+		// Draw hitbox if different from visual bounds
+		if region.HitW > 0 && region.HitH > 0 {
+			if region.HitX != 0 || region.HitY != 0 || region.HitW != region.W || region.HitH != region.H {
+				drawBorderRGBA(overlay, region.X+region.HitX, region.Y+region.HitY,
+					region.HitW, region.HitH, hitboxColor, 1)
+			}
+		}
+
 		// Draw anchor point as a cross
 		anchorX := region.X + region.AnchorX
 		anchorY := region.Y + region.AnchorY
 		drawCrossRGBA(overlay, anchorX, anchorY, colorAnchor, 5)
+
+		// Draw label with ID at top-left of sprite region
+		bgColor := color.RGBA{0, 0, 0, 200}
+		drawLabelRGBA(overlay, region.X+3, region.Y+3, name, borderColor, bgColor)
 	}
 
 	// Save as PNG
@@ -342,8 +429,9 @@ func generateAtlasOverlay() error {
 	}
 
 	fmt.Printf("Generated: sprites.debug.png (%dx%d) - atlas with region borders\n", bounds.Dx(), bounds.Dy())
-	fmt.Println("  Green=player, Red=enemies, Blue=tiles, Yellow=items, Magenta=effects")
-	fmt.Println("  White crosses mark anchor points")
+	fmt.Println("  Colored borders = visual sprite bounds")
+	fmt.Println("  Red inner boxes = hitboxes (when different from visual)")
+	fmt.Println("  White crosses = anchor points")
 	return nil
 }
 
@@ -377,6 +465,41 @@ func drawCrossRGBA(img *image.RGBA, x, y int, c color.RGBA, size int) {
 	}
 }
 
+// drawLabelRGBA draws text on an RGBA image
+func drawLabelRGBA(img *image.RGBA, x, y int, text string, textColor, bgColor color.RGBA) {
+	charWidth := 6 // 5 pixels + 1 spacing
+	textWidth := len(text) * charWidth
+	textHeight := 9
+
+	// Draw background rectangle
+	for dy := -1; dy < textHeight; dy++ {
+		for dx := -2; dx < textWidth+2; dx++ {
+			img.Set(x+dx, y+dy, bgColor)
+		}
+	}
+
+	for i, c := range text {
+		// Convert to uppercase
+		if c >= 'a' && c <= 'z' {
+			c = c - 'a' + 'A'
+		}
+
+		glyph, ok := font5x7[c]
+		if !ok {
+			continue
+		}
+
+		charX := x + i*charWidth
+		for row := 0; row < 7; row++ {
+			for col := 0; col < 5; col++ {
+				if glyph[row]&(1<<(4-col)) != 0 {
+					img.Set(charX+col, y+row, textColor)
+				}
+			}
+		}
+	}
+}
+
 func drawSpriteAt(frame *image.Paletted, spriteName string, x, y int) {
 	region, ok := data.Sprites[spriteName]
 	if !ok {
@@ -403,6 +526,24 @@ func drawSpriteAtSize(frame *image.Paletted, spriteName string, x, y, w, h int) 
 	// Scale sprite to fit w x h
 	spriteRect := image.Rect(region.X, region.Y, region.X+region.W, region.Y+region.H)
 	drawRegionScaled(frame, atlasImg, spriteRect, image.Pt(x, y), w, h)
+}
+
+func drawSpriteAtScaled(frame *image.Paletted, spriteName string, x, y int, scale float64) {
+	region, ok := data.Sprites[spriteName]
+	if !ok {
+		return
+	}
+
+	w := int(float64(region.W) * scale)
+	h := int(float64(region.H) * scale)
+	anchorX := int(float64(region.AnchorX) * scale)
+	anchorY := int(float64(region.AnchorY) * scale)
+
+	drawX := x - anchorX
+	drawY := y - anchorY
+
+	spriteRect := image.Rect(region.X, region.Y, region.X+region.W, region.Y+region.H)
+	drawRegionScaled(frame, atlasImg, spriteRect, image.Pt(drawX, drawY), w, h)
 }
 
 // 5x7 bitmap font for A-Z, 0-9, and common punctuation

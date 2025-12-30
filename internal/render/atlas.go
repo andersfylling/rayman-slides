@@ -33,10 +33,17 @@ type Atlas struct {
 	Sprites map[string]SpriteRegion
 }
 
-// LoadAtlas loads a sprite atlas from a filesystem
+// LoadAtlas loads a sprite atlas from a filesystem using the default profile
 func LoadAtlas(fsys fs.FS) (*Atlas, error) {
+	return LoadAtlasProfile(fsys, "default")
+}
+
+// LoadAtlasProfile loads a sprite atlas from a specific profile folder
+func LoadAtlasProfile(fsys fs.FS, profile string) (*Atlas, error) {
+	basePath := "assets/sprites/" + profile
+
 	// Load metadata
-	jsonData, err := fs.ReadFile(fsys, "assets/sprites/atlas.json")
+	jsonData, err := fs.ReadFile(fsys, basePath+"/atlas.json")
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +54,7 @@ func LoadAtlas(fsys fs.FS) (*Atlas, error) {
 	}
 
 	// Load image
-	imgFile, err := fsys.Open("assets/sprites/atlas.jpg")
+	imgFile, err := fsys.Open(basePath + "/" + data.Image)
 	if err != nil {
 		return nil, err
 	}

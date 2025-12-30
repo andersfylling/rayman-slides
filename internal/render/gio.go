@@ -142,19 +142,25 @@ func (r *GioRenderer) drawTileMap(ops *op.Ops, offsetX, offsetY, screenW, screen
 				var spriteID string
 				switch tile {
 				case '#':
-					spriteID = "tile_ground"
+					spriteID = "tile_grass"
 				case '=':
 					spriteID = "tile_wood"
 				case '~':
 					spriteID = "tile_water"
 				case '^':
 					spriteID = "tile_spikes"
+				case '*':
+					spriteID = "tile_fire"
+				case '.':
+					spriteID = "tile_dirt"
+				case 'c':
+					spriteID = "tile_cloud"
 				default:
-					spriteID = "tile_brick"
+					spriteID = "tile_stone"
 				}
 
 				if region, ok := r.atlas.GetRegion(spriteID); ok {
-					r.drawSprite(ops, int(px), int(py), r.tileSize, r.tileSize, region)
+					r.drawSprite(ops, int(px), int(py), r.tileSize, r.tileSize, region, false)
 					continue
 				}
 			}
@@ -183,12 +189,30 @@ func (r *GioRenderer) drawEntity(ops *op.Ops, entity game.Renderable, offsetX, o
 
 	// Try sprite atlas first
 	if r.useAtlas {
-		if region, ok := r.atlas.GetRegion(entity.SpriteID); ok {
+		// Map game entity IDs to atlas sprite IDs
+		spriteID := entity.SpriteID
+		switch {
+		case spriteID == "slime":
+			spriteID = "blob_1"
+		case spriteID == "bat":
+			spriteID = "bat_1"
+		case spriteID == "fist_right" || spriteID == "fist_left":
+			spriteID = "fist_1"
+		case spriteID == "player":
+			spriteID = "player_idle"
+		case spriteID == "orb":
+			spriteID = "orb_1"
+		case spriteID == "health":
+			spriteID = "health"
+		case spriteID == "cage":
+			spriteID = "cage_closed"
+		}
+		if region, ok := r.atlas.GetRegion(spriteID); ok {
 			// Calculate draw position using anchor
 			drawX := int(px) - region.AnchorX
 			drawY := int(py) - region.AnchorY
 
-			r.drawSprite(ops, drawX, drawY, region.W, region.H, region)
+			r.drawSprite(ops, drawX, drawY, region.W, region.H, region, entity.FlipX)
 			return
 		}
 	}
@@ -225,7 +249,7 @@ func (r *GioRenderer) drawEntity(ops *op.Ops, entity game.Renderable, offsetX, o
 }
 
 // drawSprite draws a sprite from the atlas
-func (r *GioRenderer) drawSprite(ops *op.Ops, x, y, w, h int, region SpriteRegion) {
+func (r *GioRenderer) drawSprite(ops *op.Ops, x, y, w, h int, region SpriteRegion, flipX bool) {
 	// Create transformation stack
 	defer op.Offset(image.Pt(x, y)).Push(ops).Pop()
 
@@ -236,8 +260,9 @@ func (r *GioRenderer) drawSprite(ops *op.Ops, x, y, w, h int, region SpriteRegio
 	scaleX := float32(w) / float32(region.W)
 	scaleY := float32(h) / float32(region.H)
 
-	// Apply scale
-	if region.FlipX {
+	// Apply scale (XOR region.FlipX with runtime flipX)
+	shouldFlip := region.FlipX != flipX
+	if shouldFlip {
 		// Flip horizontally: translate to right edge, scale negatively
 		op.Affine(f32.Affine2D{}.
 			Offset(f32.Pt(float32(w), 0)).

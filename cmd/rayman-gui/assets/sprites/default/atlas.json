@@ -1,0 +1,357 @@
+{
+  "image": "atlas.png",
+  "sprites": {
+    "b4n8": {
+      "x": 720,
+      "y": 360,
+      "w": 160,
+      "h": 90,
+      "anchorX": 80,
+      "anchorY": 90
+    },
+    "bat_1": {
+      "x": 699,
+      "y": 185,
+      "w": 160,
+      "h": 150,
+      "anchorX": 80,
+      "anchorY": 150
+    },
+    "bat_2": {
+      "x": 855,
+      "y": 187,
+      "w": 130,
+      "h": 148,
+      "anchorX": 65,
+      "anchorY": 148
+    },
+    "bat_3": {
+      "x": 982,
+      "y": 185,
+      "w": 132,
+      "h": 150,
+      "anchorX": 66,
+      "anchorY": 150
+    },
+    "bat_4": {
+      "x": 1110,
+      "y": 189,
+      "w": 135,
+      "h": 146,
+      "anchorX": 67,
+      "anchorY": 146
+    },
+    "bat_5": {
+      "x": 1251,
+      "y": 196,
+      "w": 135,
+      "h": 139,
+      "anchorX": 67,
+      "anchorY": 139
+    },
+    "bat_death": {
+      "x": 1256,
+      "y": 360,
+      "w": 122,
+      "h": 85,
+      "anchorX": 61,
+      "anchorY": 85
+    },
+    "blob_1": {
+      "x": 715,
+      "y": 47,
+      "w": 132,
+      "h": 107,
+      "anchorX": 66,
+      "anchorY": 107
+    },
+    "blob_2": {
+      "x": 856,
+      "y": 47,
+      "w": 119,
+      "h": 107,
+      "anchorX": 59,
+      "anchorY": 107
+    },
+    "blob_jump_1": {
+      "x": 1047,
+      "y": 34,
+      "w": 122,
+      "h": 121,
+      "anchorX": 61,
+      "anchorY": 121
+    },
+    "blob_jump_2": {
+      "x": 1177,
+      "y": 11,
+      "w": 118,
+      "h": 144,
+      "anchorX": 59,
+      "anchorY": 144
+    },
+    "c7p3": {
+      "x": 880,
+      "y": 360,
+      "w": 160,
+      "h": 90,
+      "anchorX": 80,
+      "anchorY": 90
+    },
+    "cage_closed": {
+      "x": 1156,
+      "y": 488,
+      "w": 117,
+      "h": 124,
+      "anchorX": 58,
+      "anchorY": 124
+    },
+    "cage_open": {
+      "x": 1277,
+      "y": 489,
+      "w": 115,
+      "h": 123,
+      "anchorX": 57,
+      "anchorY": 123
+    },
+    "d2q6": {
+      "x": 1040,
+      "y": 360,
+      "w": 160,
+      "h": 90,
+      "anchorX": 80,
+      "anchorY": 90
+    },
+    "fist_1": {
+      "x": 36,
+      "y": 360,
+      "w": 91,
+      "h": 94,
+      "anchorX": 45,
+      "anchorY": 94
+    },
+    "fist_2": {
+      "x": 148,
+      "y": 361,
+      "w": 115,
+      "h": 85,
+      "anchorX": 57,
+      "anchorY": 85
+    },
+    "fist_3": {
+      "x": 264,
+      "y": 361,
+      "w": 186,
+      "h": 89,
+      "anchorX": 93,
+      "anchorY": 89
+    },
+    "health": {
+      "x": 1031,
+      "y": 515,
+      "w": 91,
+      "h": 90,
+      "anchorX": 45,
+      "anchorY": 90
+    },
+    "orb_1": {
+      "x": 716,
+      "y": 516,
+      "w": 86,
+      "h": 82,
+      "anchorX": 43,
+      "anchorY": 82
+    },
+    "orb_2": {
+      "x": 827,
+      "y": 518,
+      "w": 79,
+      "h": 82,
+      "anchorX": 39,
+      "anchorY": 82
+    },
+    "orb_3": {
+      "x": 930,
+      "y": 520,
+      "w": 85,
+      "h": 81,
+      "anchorX": 42,
+      "anchorY": 81
+    },
+    "player_attack_1": {
+      "x": 179,
+      "y": 186,
+      "w": 154,
+      "h": 150,
+      "anchorX": 77,
+      "anchorY": 150
+    },
+    "player_attack_2": {
+      "x": 385,
+      "y": 189,
+      "w": 176,
+      "h": 147,
+      "anchorX": 88,
+      "anchorY": 147
+    },
+    "player_idle": {
+      "x": 25,
+      "y": 11,
+      "w": 90,
+      "h": 145,
+      "anchorX": 45,
+      "anchorY": 145
+    },
+    "player_jump": {
+      "x": 16,
+      "y": 185,
+      "w": 126,
+      "h": 155,
+      "anchorX": 63,
+      "anchorY": 155
+    },
+    "player_walk_1": {
+      "x": 162,
+      "y": 11,
+      "w": 104,
+      "h": 145,
+      "anchorX": 52,
+      "anchorY": 145
+    },
+    "player_walk_2": {
+      "x": 269,
+      "y": 12,
+      "w": 104,
+      "h": 144,
+      "anchorX": 52,
+      "anchorY": 144
+    },
+    "player_walk_3": {
+      "x": 374,
+      "y": 13,
+      "w": 110,
+      "h": 143,
+      "anchorX": 55,
+      "anchorY": 143
+    },
+    "player_walk_4": {
+      "x": 485,
+      "y": 13,
+      "w": 112,
+      "h": 143,
+      "anchorX": 56,
+      "anchorY": 143
+    },
+    "smoke_1": {
+      "x": 736,
+      "y": 680,
+      "w": 21,
+      "h": 23,
+      "anchorX": 10,
+      "anchorY": 23
+    },
+    "smoke_2": {
+      "x": 752,
+      "y": 666,
+      "w": 34,
+      "h": 38,
+      "anchorX": 17,
+      "anchorY": 38
+    },
+    "smoke_3": {
+      "x": 787,
+      "y": 653,
+      "w": 50,
+      "h": 52,
+      "anchorX": 25,
+      "anchorY": 52
+    },
+    "smoke_4": {
+      "x": 832,
+      "y": 653,
+      "w": 54,
+      "h": 52,
+      "anchorX": 27,
+      "anchorY": 52
+    },
+    "sprite_43": {
+      "x": 1010,
+      "y": 637,
+      "w": 138,
+      "h": 108,
+      "anchorX": 69,
+      "anchorY": 108
+    },
+    "sprite_48": {
+      "x": 1159,
+      "y": 638,
+      "w": 109,
+      "h": 110,
+      "anchorX": 54,
+      "anchorY": 110
+    },
+    "tile_cloud": {
+      "x": 545,
+      "y": 502,
+      "w": 163,
+      "h": 99,
+      "anchorX": 81,
+      "anchorY": 99
+    },
+    "tile_dirt": {
+      "x": 154,
+      "y": 504,
+      "w": 108,
+      "h": 108,
+      "anchorX": 54,
+      "anchorY": 108
+    },
+    "tile_fire": {
+      "x": 417,
+      "y": 641,
+      "w": 108,
+      "h": 108,
+      "anchorX": 54,
+      "anchorY": 108
+    },
+    "tile_grass": {
+      "x": 22,
+      "y": 504,
+      "w": 108,
+      "h": 108,
+      "anchorX": 54,
+      "anchorY": 108
+    },
+    "tile_spikes": {
+      "x": 22,
+      "y": 641,
+      "w": 108,
+      "h": 108,
+      "anchorX": 54,
+      "anchorY": 108
+    },
+    "tile_stone": {
+      "x": 417,
+      "y": 504,
+      "w": 108,
+      "h": 108,
+      "anchorX": 54,
+      "anchorY": 108
+    },
+    "tile_water": {
+      "x": 153,
+      "y": 641,
+      "w": 108,
+      "h": 108,
+      "anchorX": 54,
+      "anchorY": 108
+    },
+    "tile_wood": {
+      "x": 285,
+      "y": 504,
+      "w": 108,
+      "h": 108,
+      "anchorX": 54,
+      "anchorY": 108
+    }
+  }
+}

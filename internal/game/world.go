@@ -20,6 +20,7 @@ type World struct {
 	enemyMapper  *ecs.Map7[Position, Velocity, Collider, Sprite, Health, Gravity, Grounded]
 	attackMapper *ecs.Map1[AttackState] // Separate mapper for attack state
 	fistMapper   *ecs.Map4[Position, Velocity, Sprite, Fist]
+	fistChecker  *ecs.Map1[Fist] // For checking if entity has Fist component
 
 	// Filters for queries
 	playerFilter  *ecs.Filter2[Position, Player]
@@ -47,6 +48,7 @@ func NewWorld() *World {
 	w.enemyMapper = ecs.NewMap7[Position, Velocity, Collider, Sprite, Health, Gravity, Grounded](w.ECS)
 	w.attackMapper = ecs.NewMap1[AttackState](w.ECS)
 	w.fistMapper = ecs.NewMap4[Position, Velocity, Sprite, Fist](w.ECS)
+	w.fistChecker = ecs.NewMap1[Fist](w.ECS)
 
 	// Initialize filters
 	w.playerFilter = ecs.NewFilter2[Position, Player](w.ECS)
@@ -415,6 +417,7 @@ type Renderable struct {
 	X, Y     float64
 	SpriteID string
 	Color    uint32 // Color hint (renderers may use their atlas colors instead)
+	FlipX    bool   // Flip sprite horizontally (facing left)
 }
 
 // GetRenderables returns all entities with position and sprite for rendering
@@ -424,11 +427,29 @@ func (w *World) GetRenderables() []Renderable {
 	query := w.renderFilter.Query()
 	for query.Next() {
 		pos, sprite := query.Get()
+		entity := query.Entity()
+
+		// Determine facing direction
+		flipX := false
+
+		// Check if entity has AttackState (player) - FacingRight=false means facing left
+		if w.attackMapper.HasAll(entity) {
+			attack := w.attackMapper.Get(entity)
+			flipX = !attack.FacingRight
+		}
+
+		// Check if entity is a Fist - FacingRight=false means facing left
+		if w.fistChecker.HasAll(entity) {
+			fist := w.fistChecker.Get(entity)
+			flipX = !fist.FacingRight
+		}
+
 		result = append(result, Renderable{
 			X:        pos.X,
 			Y:        pos.Y,
 			SpriteID: sprite.ID,
 			Color:    sprite.Color,
+			FlipX:    flipX,
 		})
 	}
 
