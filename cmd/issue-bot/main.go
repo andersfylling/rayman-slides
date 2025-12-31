@@ -150,7 +150,10 @@ func main() {
 
 func (b *Bot) run() {
 	for {
+		b.logger.Println("--- Poll cycle starting ---")
+
 		// Pull latest changes
+		b.logger.Println("Pulling latest changes...")
 		b.gitPull()
 
 		// Auto-accept owner issues
@@ -160,13 +163,19 @@ func (b *Bot) run() {
 		b.checkWaitingIssuesForFeedback()
 
 		// Process accepted issues (Phase 1: Test creation)
+		b.logger.Println("Checking for accepted issues...")
 		if issue := b.getNextAcceptedIssue(); issue != nil {
 			b.processIssue(issue)
+		} else {
+			b.logger.Println("No accepted issues to process")
 		}
 
 		// Process accepted PRs (Phase 2: Implementation)
+		b.logger.Println("Checking for accepted PRs...")
 		if pr := b.getNextAcceptedPR(); pr != nil {
 			b.processPR(pr)
+		} else {
+			b.logger.Println("No accepted PRs to process")
 		}
 
 		if b.cfg.Once {
