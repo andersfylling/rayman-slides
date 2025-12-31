@@ -19,7 +19,7 @@ jobs:
       - name: Install Gio dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxfixes-dev libegl1-mesa-dev libgles2-mesa-dev
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxfixes-dev libegl1-mesa-dev libgles2-mesa-dev libvulkan-dev
 
       - name: Run tests
         run: make test
