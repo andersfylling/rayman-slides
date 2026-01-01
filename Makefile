@@ -1,4 +1,4 @@
-.PHONY: build run server lookup test clean fmt lint sprites-debug sprite-editor
+.PHONY: build run server lookup test clean fmt lint sprites-debug sprite-editor issue-bot
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
@@ -56,3 +56,11 @@ sprites-debug:
 # Run sprite editor GUI
 sprite-editor:
 	go run -tags gio ./cmd/sprite-editor
+
+# Run issue bot (autonomous GitHub issue resolver)
+issue-bot:
+	go run ./cmd/issue-bot
+
+# Build issue bot binary
+build-issue-bot:
+	go build $(LDFLAGS) -o bin/issue-bot ./cmd/issue-bot
